@@ -149,7 +149,7 @@ def get_duration(filepath):
 
 
 def run_download(job_id, url, format_choice, format_id, force_h264=False,
-                 fast_mode=False, start_time=None, end_time=None):
+                 fast_mode=False, start_time=None, end_time=None, sections=None):
     job = jobs[job_id]
     job["logs"] = []
     job["progress"] = 0
@@ -165,16 +165,20 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
            "--no-call-home",  # skip telemetry call
            "-o", out_template]
 
-    # Trim to a specific segment if start/end provided.
-    # Accepts seconds ("30") or timestamps ("1:23", "0:01:23").
-    # yt-dlp uses ffmpeg to cut. "inf" means end-of-video.
-    if start_time or end_time:
-        s = str(start_time or "0").strip()
-        e = str(end_time or "inf").strip()
-        section = f"*{s}-{e}"
-        cmd += ["--download-sections", section,
-                "--force-keyframes-at-cuts"]
-        log(job, f"Trimming to segment: {section}")
+    # Normalize legacy single-segment (start_time/end_time) into sections list.
+    # sections is a list of {"start": str, "end": str}; when multiple are given
+    # yt-dlp downloads each and ffmpeg-concats them into one output file.
+    if not sections and (start_time or end_time):
+        sections = [{"start": start_time or "0", "end": end_time or "inf"}]
+
+    if sections:
+        for seg in sections:
+            s = str(seg.get("start") or "0").strip()
+            e = str(seg.get("end") or "inf").strip()
+            cmd += ["--download-sections", f"*{s}-{e}"]
+        cmd += ["--force-keyframes-at-cuts"]
+        log(job, f"Trimming to {len(sections)} segment(s): "
+                 + ", ".join(f"{seg.get('start','0')}-{seg.get('end','inf')}" for seg in sections))
 
     # Fast mode: skip cookies (works for public content)
     # Normal mode: use cookies for private/age-restricted content
@@ -529,17 +533,28 @@ def start_download():
     start_time = (data.get("start_time") or "").strip() or None
     end_time = (data.get("end_time") or "").strip() or None
 
+    # Multi-segment support: sections = [{"start": "0:10", "end": "0:30"}, ...]
+    raw_sections = data.get("sections") or []
+    sections = []
+    for seg in raw_sections:
+        s = (str(seg.get("start", "")).strip() if isinstance(seg, dict) else "")
+        e = (str(seg.get("end", "")).strip() if isinstance(seg, dict) else "")
+        if s or e:
+            sections.append({"start": s or "0", "end": e or "inf"})
+    sections = sections or None
+
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
     job_id = uuid.uuid4().hex[:10]
     jobs[job_id] = {"status": "downloading", "url": url, "title": title,
                     "logs": [], "progress": 0, "phase": "queued",
-                    "start_time": start_time, "end_time": end_time}
+                    "start_time": start_time, "end_time": end_time,
+                    "sections": sections}
 
     thread = threading.Thread(target=run_download,
                               args=(job_id, url, format_choice, format_id,
-                                    force_h264, fast_mode, start_time, end_time))
+                                    force_h264, fast_mode, start_time, end_time, sections))
     thread.daemon = True
     thread.start()
 
