@@ -1,0 +1,75 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "유튜브 다운로더",
+  "version": "0.1.1",
+  "identifier": "com.bangju.clipdown",
+  "build": {
+    "frontendDist": "../ui",
+    "devUrl": "http://localhost:8899/simple"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "유튜브 다운로더",
+        "width": 900,
+        "height": 1000,
+        "minWidth": 720,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "url": "http://localhost:8899/simple"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "category": "Utility",
+    "shortDescription": "유튜브 · 인스타그램 · 틱톡 등 영상 다운로드",
+    "longDescription": "유튜브 다운로더 — 유튜브, 인스타그램, 틱톡 등 1000+ 사이트에서 영상과 오디오를 저장합니다. 시니어 친화 UI, 자동 업데이트 지원.",
+    "copyright": "Copyright (c) 2026 bangju",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/portable/*": "portable/",
+      "resources/portable/**/*": "portable/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "localhost"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Korean", "English"],
+        "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "endpoints": [
+        "https://github.com/redbear7/clipdown/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ1OTA4MDlCMTAzQjE0NDMKUldSREZEc1FtNENRUlU0SjQvbWFnb1FxTEM0OHA4alY0MlZJRDhiVk1RbjB2VUZOeFVyZyt4OXYK"
+    }
+  }
+}

@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>유튜브 다운로더 v0.1.1</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       DESIGN TOKENS  (Perplexity-inspired, warm neutral palette)
+       ═══════════════════════════════════════════════════════════ */
+    :root {
+      /* Surface — warm cream, restrained hierarchy */
+      --bg:            #f8f4ec;
+      --bg-elevated:   #fbf8f0;
+      --surface:       #ffffff;
+      --surface-hover: #fdfbf5;
+      --surface-muted: #f2ecdd;
+
+      /* Text */
+      --fg:            #191713;
+      --fg-secondary:  #4a4640;
+      --fg-tertiary:   #7a736a;
+      --fg-muted:      #a09889;
+      --fg-inverse:    #ffffff;
+
+      /* Borders */
+      --border:        #e5ddc8;
+      --border-strong: #c9bfa5;
+      --border-focus:  #a75a2d;
+      --divider:       #ebe4d0;
+
+      /* Accent — a single refined terracotta, used sparingly */
+      --primary:       #a75a2d;
+      --primary-hover: #8d4820;
+      --primary-active:#7a3d1a;
+      --primary-tint:  #f7ede2;
+      --primary-muted: #eddac6;
+
+      /* Secondary accent — very subtle, informational */
+      --secondary:     #4d6b47;
+      --secondary-tint:#e8efe5;
+
+      /* States */
+      --success:       #2f6a3f;
+      --success-tint:  #e4efe4;
+      --warning:       #a06616;
+      --warning-tint:  #f4e9d8;
+      --danger:        #9c2323;
+      --danger-tint:   #f3e0e0;
+
+      /* Elevation — Perplexity uses very subtle shadows */
+      --shadow-xs:  0 1px 2px rgba(70, 50, 20, 0.04);
+      --shadow-sm:  0 1px 3px rgba(70, 50, 20, 0.06);
+      --shadow-md:  0 4px 12px rgba(70, 50, 20, 0.08);
+      --shadow-lg:  0 12px 32px rgba(70, 50, 20, 0.12);
+
+      /* Focus ring */
+      --focus-ring: 0 0 0 3px rgba(167, 90, 45, 0.25);
+
+      /* Radius scale */
+      --r-xs: 6px;
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 16px;
+      --r-xl: 20px;
+      --r-full: 999px;
+
+      /* Motion */
+      --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RESET & BASE
+       ═══════════════════════════════════════════════════════════ */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html { font-size: 17px; }
+    body {
+      font-family: 'Inter', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-feature-settings: 'ss01', 'cv11';
+      padding: 28px 20px 96px;
+      min-height: 100vh;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+
+    /* Selection */
+    ::selection { background: var(--primary-tint); color: var(--primary-active); }
+
+    /* ═══════════════════════════════════════════════════════════
+       HEADER  —  editorial, restrained
+       ═══════════════════════════════════════════════════════════ */
+    .brand {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .brand h1 {
+      font-family: 'Fraunces', 'Noto Sans KR', serif;
+      font-size: 2.4rem;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 8px;
+      font-variation-settings: "opsz" 96;
+    }
+    .brand h1 .version {
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--fg-muted);
+      letter-spacing: 0.02em;
+      vertical-align: middle;
+      margin-left: 12px;
+      padding: 2px 8px;
+      background: var(--surface-muted);
+      border-radius: var(--r-full);
+    }
+    .brand p {
+      color: var(--fg-tertiary);
+      font-size: 1.05rem;
+      font-weight: 400;
+      letter-spacing: -0.005em;
+    }
+
+    /* Update badge — subtle pill */
+    .update-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: var(--surface);
+      color: var(--primary);
+      border: 1px solid var(--primary-muted);
+      border-radius: var(--r-full);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s var(--ease);
+      box-shadow: var(--shadow-xs);
+    }
+    .update-badge::before {
+      content: "";
+      width: 6px; height: 6px;
+      background: var(--primary);
+      border-radius: var(--r-full);
+      box-shadow: 0 0 0 4px var(--primary-tint);
+    }
+    .update-badge:hover {
+      background: var(--primary-tint);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+    .update-badge.ok {
+      color: var(--fg-tertiary);
+      border-color: var(--border);
+    }
+    .update-badge.ok::before {
+      background: var(--fg-muted);
+      box-shadow: 0 0 0 4px var(--surface-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CARD  —  the main container
+       ═══════════════════════════════════════════════════════════ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      padding: 40px 36px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Section — vertical rhythm inside the card */
+    .section {
+      margin-top: 36px;
+    }
+    .section:first-child { margin-top: 0; }
+
+    /* Step header — numbered lockup */
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .step-num {
+      width: 34px;
+      height: 34px;
+      background: var(--fg);
+      color: var(--fg-inverse);
+      border-radius: var(--r-full);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      letter-spacing: -0.02em;
+    }
+    .step-text {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: -0.015em;
+    }
+    .step-hint {
+      color: var(--fg-tertiary);
+      font-size: 0.95rem;
+      margin: 4px 0 16px 48px;
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       INPUT
+       ═══════════════════════════════════════════════════════════ */
+    #urlInput {
+      width: 100%;
+      padding: 18px 20px;
+      font-size: 1.05rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-md);
+      outline: none;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      color: var(--fg);
+      background: var(--surface);
+      transition: all 0.18s var(--ease);
+      font-weight: 500;
+      letter-spacing: -0.005em;
+    }
+    #urlInput::placeholder {
+      color: var(--fg-muted);
+      font-weight: 400;
+    }
+    #urlInput:focus {
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
+    }
+
+    /* URL row with paste button */
+    .url-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .url-row #urlInput { flex: 1; }
+
+    .paste-btn {
+      padding: 0 22px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 60px;
+      transition: all 0.18s var(--ease);
+      white-space: nowrap;
+      letter-spacing: -0.005em;
+    }
+    .paste-btn:hover {
+      background: var(--surface-hover);
+      border-color: var(--fg-tertiary);
+      color: var(--fg);
+    }
+    .paste-btn:active { transform: translateY(1px); }
+    .paste-icon {
+      width: 16px; height: 16px;
+      opacity: 0.7;
+    }
+    @media (max-width: 500px) {
+      .url-row { flex-direction: column; }
+      .paste-btn { min-height: 52px; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FORMAT SELECTOR  —  refined, no gradients
+       ═══════════════════════════════════════════════════════════ */
+    .format-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .fmt-btn {
+      padding: 22px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--fg);
+      transition: all 0.18s var(--ease);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      min-height: 88px;
+      position: relative;
+      text-align: left;
+    }
+    .fmt-btn .fmt-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--r-sm);
+      background: var(--surface-muted);
+      color: var(--fg-tertiary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.18s var(--ease);
+    }
+    .fmt-btn .fmt-icon svg { width: 20px; height: 20px; }
+    .fmt-text { display: flex; flex-direction: column; align-items: flex-start; }
+    .fmt-btn .fmt-label {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+    .fmt-btn .fmt-sub {
+      font-size: 0.85rem;
+      color: var(--fg-tertiary);
+      font-weight: 500;
+      margin-top: 2px;
+      letter-spacing: 0;
+    }
+    .fmt-btn:hover:not(.active) {
+      border-color: var(--border-strong);
+      background: var(--surface-hover);
+    }
+    .fmt-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-tint);
+      box-shadow: inset 0 0 0 1px var(--primary);
+    }
+    .fmt-btn.active .fmt-icon {
+      background: var(--primary);
+      color: var(--fg-inverse);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TRIM  —  optional, subdued
+       ═══════════════════════════════════════════════════════════ */
+    .trim-toggle-row { margin-top: 20px; }
+    .trim-toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-size: 0.98rem;
+      color: var(--fg-secondary);
+      font-weight: 500;
+      padding: 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      transition: all 0.18s var(--ease);
+      background: var(--bg-elevated);
+    }
+    .trim-toggle:hover { border-color: var(--border-strong); }
+    .trim-toggle input {
+      width: 18px; height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .trim-toggle:has(input:checked) {
+      border-color: var(--primary);
+      background: var(--primary-tint);
+    }
+    .trim-toggle:has(input:checked) .trim-toggle-label { color: var(--primary); font-weight: 600; }
+
+    .trim-fields {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 22px 20px;
+      margin-top: 10px;
+    }
+    .time-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 14px;
+    }
+    .time-field { flex: 1; }
+    .time-field label {
+      display: block;
+      font-size: 0.88rem;
+      color: var(--fg-tertiary);
+      margin-bottom: 8px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    .time-field input {
+      width: 100%;
+      padding: 14px 12px;
+      font-size: 1.2rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      outline: none;
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 500;
+      background: var(--surface);
+      text-align: center;
+      color: var(--fg);
+      letter-spacing: 0.02em;
+      transition: all 0.18s var(--ease);
+    }
+    .time-field input:focus {
+      border-color: var(--border-focus);
+      box-shadow: var(--focus-ring);
+    }
+    .time-arrow {
+      font-size: 1.4rem;
+      color: var(--fg-muted);
+      padding-bottom: 14px;
+      font-family: 'Fraunces', serif;
+    }
+    .trim-hint {
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: var(--fg-tertiary);
+      line-height: 1.85;
+    }
+    .trim-hint code {
+      background: var(--surface);
+      padding: 2px 8px;
+      border-radius: var(--r-xs);
+      border: 1px solid var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 500;
+      color: var(--fg-secondary);
+      font-size: 0.92rem;
+    }
+    .trim-hint strong { color: var(--fg); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════════════════
+       PRIMARY ACTION BUTTON
+       ═══════════════════════════════════════════════════════════ */
+    .dl-btn {
+      width: 100%;
+      padding: 22px;
+      background: var(--primary);
+      color: var(--fg-inverse);
+      border: none;
+      border-radius: var(--r-md);
+      font-size: 1.15rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.18s var(--ease);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+      letter-spacing: -0.01em;
+      box-shadow: 0 1px 2px rgba(167, 90, 45, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .dl-btn:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(167, 90, 45, 0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .dl-btn:active:not(:disabled) {
+      background: var(--primary-active);
+      transform: translateY(0);
+    }
+    .dl-btn:focus-visible { box-shadow: var(--focus-ring); }
+    .dl-btn:disabled {
+      background: var(--fg-muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .dl-btn svg { width: 20px; height: 20px; }
+
+    /* ═══════════════════════════════════════════════════════════
+       DOWNLOADS — active session
+       ═══════════════════════════════════════════════════════════ */
+    .downloads { margin-top: 40px; }
+    .downloads-header {
+      font-size: 0.85rem;
+      color: var(--fg-tertiary);
+      margin-bottom: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .downloads-header > span:first-child {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 18px 20px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: all 0.18s var(--ease);
+    }
+    .item.done { border-color: var(--success); background: var(--success-tint); }
+    .item.err  { border-color: var(--danger);  background: var(--danger-tint);  }
+
+    .item-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--r-sm);
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .item-icon.dl {
+      background: var(--primary-tint);
+      color: var(--primary);
+    }
+    .item-icon.done {
+      background: var(--success);
+      color: var(--fg-inverse);
+    }
+    .item-icon.err {
+      background: var(--danger);
+      color: var(--fg-inverse);
+    }
+    .item-icon svg { width: 18px; height: 18px; }
+
+    .item-body { flex: 1; min-width: 0; }
+    .item-title {
+      font-weight: 600;
+      font-size: 0.98rem;
+      color: var(--fg);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      letter-spacing: -0.005em;
+    }
+    .item-status {
+      font-size: 0.9rem;
+      color: var(--fg-tertiary);
+      margin-top: 3px;
+      font-weight: 500;
+    }
+    .item-status.done { color: var(--success); font-weight: 600; }
+    .item-status.err  { color: var(--danger);  font-weight: 600; }
+
+    .item-progress {
+      margin-top: 10px;
+      height: 4px;
+      background: var(--surface-muted);
+      border-radius: var(--r-full);
+      overflow: hidden;
+    }
+    .item-progress-fill {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+      border-radius: var(--r-full);
+    }
+
+    .item-btn {
+      padding: 8px 14px;
+      background: var(--surface);
+      color: var(--fg-secondary);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      min-height: 36px;
+      transition: all 0.18s var(--ease);
+    }
+    .item-btn:hover {
+      border-color: var(--fg-secondary);
+      color: var(--fg);
+    }
+
+    /* Open folder — secondary style */
+    .open-folder-btn {
+      background: transparent;
+      color: var(--fg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--r-full);
+      padding: 6px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s var(--ease);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .open-folder-btn:hover {
+      border-color: var(--fg-tertiary);
+      color: var(--fg);
+      background: var(--surface);
+    }
+    .open-folder-btn svg { width: 14px; height: 14px; }
+
+    /* Spinner */
+    .spin {
+      width: 18px; height: 18px;
+      border: 2px solid var(--primary-tint);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    .dl-btn .spin {
+      border-color: rgba(255,255,255,0.28);
+      border-top-color: #fff;
+      width: 20px; height: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ═══════════════════════════════════════════════════════════
+       HISTORY  —  clean list
+       ═══════════════════════════════════════════════════════════ */
+    .history { margin-top: 44px; }
+    .history-header {
+      font-size: 0.85rem;
+      color: var(--fg-tertiary);
+      margin-bottom: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .history-clear-btn {
+      background: transparent;
+      color: var(--fg-muted);
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: color 0.15s;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .history-clear-btn:hover { color: var(--danger); }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 16px 18px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.18s var(--ease);
+    }
+    .history-item:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-hover);
+    }
+    .history-icon {
+      width: 36px; height: 36px;
+      border-radius: var(--r-sm);
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      background: var(--surface-muted);
+      color: var(--fg-secondary);
+    }
+    .history-icon svg { width: 16px; height: 16px; }
+    .history-icon.audio {
+      background: var(--secondary-tint);
+      color: var(--secondary);
+    }
+    .history-body { flex: 1; min-width: 0; }
+    .history-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--fg);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      letter-spacing: -0.005em;
+    }
+    .history-meta {
+      font-size: 0.82rem;
+      color: var(--fg-tertiary);
+      margin-top: 4px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-weight: 500;
+    }
+    .history-meta .badge {
+      background: var(--surface-muted);
+      padding: 2px 7px;
+      border-radius: var(--r-xs);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+      letter-spacing: 0.02em;
+    }
+    .history-meta .dot {
+      color: var(--fg-muted);
+      opacity: 0.6;
+    }
+    .history-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .history-btn {
+      padding: 8px 14px;
+      background: transparent;
+      color: var(--fg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 600;
+      transition: all 0.18s var(--ease);
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .history-btn:hover {
+      border-color: var(--fg-secondary);
+      color: var(--fg);
+      background: var(--surface);
+    }
+    .history-btn.primary {
+      color: var(--primary);
+      border-color: var(--primary-muted);
+    }
+    .history-btn.primary:hover {
+      background: var(--primary);
+      color: var(--fg-inverse);
+      border-color: var(--primary);
+    }
+    .history-btn.danger:hover {
+      color: var(--danger);
+      border-color: var(--danger);
+      background: var(--danger-tint);
+    }
+    .history-btn svg { width: 14px; height: 14px; }
+    @media (max-width: 500px) {
+      .history-item { flex-wrap: wrap; }
+      .history-actions { width: 100%; margin-top: 8px; }
+      .history-btn { flex: 1; justify-content: center; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TOAST
+       ═══════════════════════════════════════════════════════════ */
+    .toast {
+      position: fixed;
+      top: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-16px);
+      background: var(--fg);
+      color: var(--fg-inverse);
+      padding: 14px 22px;
+      border-radius: var(--r-full);
+      font-size: 0.95rem;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+      z-index: 100;
+      max-width: 90%;
+      box-shadow: var(--shadow-lg);
+      letter-spacing: -0.005em;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.err { background: var(--danger); }
+    .toast.ok  { background: var(--success); }
+
+    /* ═══════════════════════════════════════════════════════════
+       UPDATE PANEL (modal)
+       ═══════════════════════════════════════════════════════════ */
+    .update-panel {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      max-width: 480px;
+      width: 92%;
+      overflow: hidden;
+    }
+    .up-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--divider);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .up-title {
+      font-family: 'Fraunces', serif;
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.02em;
+    }
+    .up-close {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--fg-tertiary);
+      padding: 6px;
+      border-radius: var(--r-sm);
+      line-height: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .up-close:hover {
+      background: var(--surface-muted);
+      color: var(--fg);
+    }
+    .up-close svg { width: 18px; height: 18px; }
+    .up-body { padding: 6px 24px 20px; }
+    .up-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--divider);
+      gap: 16px;
+    }
+    .up-row:last-of-type { border-bottom: none; }
+    .up-name {
+      font-weight: 600;
+      color: var(--fg);
+      font-size: 1rem;
+      letter-spacing: -0.005em;
+    }
+    .up-sub {
+      font-size: 0.85rem;
+      color: var(--fg-tertiary);
+      margin-top: 3px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .up-status {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+    }
+    .up-status.ok  { color: var(--success); }
+    .up-status.new { color: var(--primary); }
+    .up-status.err { color: var(--danger); }
+    .up-action {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .up-btn {
+      background: var(--primary);
+      color: var(--fg-inverse);
+      border: none;
+      border-radius: var(--r-sm);
+      padding: 9px 16px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      min-height: 36px;
+      transition: all 0.18s;
+      letter-spacing: -0.005em;
+    }
+    .up-btn:hover:not(:disabled) { background: var(--primary-hover); }
+    .up-btn:disabled { background: var(--fg-muted); cursor: not-allowed; }
+    .up-hint {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      font-size: 0.86rem;
+      color: var(--fg-tertiary);
+      line-height: 1.6;
+    }
+    .up-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 20, 10, 0.35);
+      backdrop-filter: blur(4px);
+      z-index: 199;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════ */
+    .foot {
+      text-align: center;
+      color: var(--fg-tertiary);
+      font-size: 0.92rem;
+      margin-top: 44px;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+    .foot strong { color: var(--fg-secondary); font-weight: 600; }
+    .foot .sites {
+      font-size: 0.85rem;
+      color: var(--fg-muted);
+      margin-top: 6px;
+      display: block;
+    }
+    .foot-actions {
+      margin-top: 18px;
+      display: flex;
+      justify-content: center;
+    }
+    .foot-btn {
+      background: transparent;
+      color: var(--fg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--r-full);
+      padding: 10px 20px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.18s;
+      letter-spacing: -0.005em;
+    }
+    .foot-btn:hover {
+      border-color: var(--fg-tertiary);
+      color: var(--fg);
+      background: var(--surface);
+    }
+    .foot-btn svg { width: 16px; height: 16px; }
+
+    /* Focus */
+    button:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+
+    /* Small screens */
+    @media (max-width: 500px) {
+      html { font-size: 16px; }
+      body { padding: 32px 14px 60px; }
+      .brand { margin-bottom: 40px; }
+      .brand h1 { font-size: 2.4rem; }
+      .card { padding: 26px 20px; border-radius: 18px; }
+      .fmt-btn { min-height: 78px; padding: 18px 14px; }
+      .step-num { width: 30px; height: 30px; font-size: 1rem; }
+      .step-text { font-size: 1.1rem; }
+      .dl-btn { font-size: 1.05rem; padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="brand">
+    <h1>유튜브 다운로더 <span class="version">v0.1.1</span></h1>
+    <p>주소만 붙여넣으면 영상이 저장됩니다</p>
+    <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
+  </div>
+
+  <!-- Update panel -->
+  <div class="update-panel" id="updatePanel" style="display:none;">
+    <div class="up-header">
+      <span class="up-title">프로그램 업데이트</span>
+      <button class="up-close" onclick="closeUpdatePanel()" title="닫기" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="up-body">
+      <div class="up-row">
+        <div>
+          <div class="up-name">유튜브 다운로더</div>
+          <div class="up-sub" id="upAppVersion">현재 버전 확인 중…</div>
+        </div>
+        <div class="up-status" id="upAppStatus">—</div>
+      </div>
+      <div class="up-row">
+        <div>
+          <div class="up-name">영상 저장 엔진 (yt-dlp)</div>
+          <div class="up-sub" id="upYtdlpVersion">현재 버전 확인 중…</div>
+        </div>
+        <div class="up-action" id="upYtdlpAction">
+          <span class="up-status">—</span>
+        </div>
+      </div>
+      <div class="up-hint" id="upHint">
+        유튜브가 자주 정책을 바꾸므로, 저장이 잘 안 되면 엔진 업데이트를 해보세요.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">영상 주소를 붙여넣으세요</div>
+    </div>
+    <div class="step-hint">유튜브, 인스타그램 등의 영상 주소를 복사해서 여기에 붙여넣습니다</div>
+    <div class="url-row">
+      <input type="text" id="urlInput" placeholder="예: https://www.youtube.com/..." autofocus>
+      <button type="button" class="paste-btn" onclick="pasteFromClipboard()" title="복사한 주소 붙여넣기">
+        <svg class="paste-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>붙여넣기</span>
+      </button>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="section">
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">어떻게 저장할까요?</div>
+      </div>
+      <div class="format-row">
+        <button class="fmt-btn active" data-fmt="video" onclick="pickFormat('video')">
+          <span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M22 8l-6 4 6 4V8z"/></svg></span>
+          <span class="fmt-text">
+            <span class="fmt-label">영상으로</span>
+            <span class="fmt-sub">MP4 파일</span>
+          </span>
+        </button>
+        <button class="fmt-btn" data-fmt="audio" onclick="pickFormat('audio')">
+          <span class="fmt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+          <span class="fmt-text">
+            <span class="fmt-label">소리만</span>
+            <span class="fmt-sub">MP3 파일</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Optional trim -->
+      <div class="trim-toggle-row">
+        <label class="trim-toggle">
+          <input type="checkbox" id="trimEnable" onchange="toggleTrim()">
+          <span class="trim-toggle-label">✂️  영상의 일부분만 저장할까요? (선택 사항)</span>
+        </label>
+      </div>
+      <div class="trim-fields" id="trimFields" style="display:none;">
+        <div class="time-row">
+          <div class="time-field">
+            <label>시작 시간</label>
+            <input type="text" id="startTime" placeholder="0:00" inputmode="numeric">
+          </div>
+          <span class="time-arrow">→</span>
+          <div class="time-field">
+            <label>끝 시간</label>
+            <input type="text" id="endTime" placeholder="1:30" inputmode="numeric">
+          </div>
+        </div>
+        <div class="trim-hint">
+          <strong>입력 예시:</strong><br>
+          · <code>15</code> — 15초부터<br>
+          · <code>1:30</code> — 1분 30초부터<br>
+          · <code>1:23:45</code> — 1시간 23분 45초부터<br>
+          · 끝 시간을 비우면 영상 끝까지 저장됩니다
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="section">
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">시작 버튼을 누르세요</div>
+      </div>
+      <button class="dl-btn" id="dlBtn" onclick="startDownload()">
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>저장 시작하기</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="downloads" id="downloads" style="display:none;">
+    <div class="downloads-header">
+      <span>진행 중</span>
+      <button type="button" class="open-folder-btn" onclick="openDownloadFolder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>폴더 열기</span>
+      </button>
+    </div>
+    <div id="items"></div>
+  </div>
+
+  <!-- Persistent download history -->
+  <div class="history" id="history" style="display:none;">
+    <div class="history-header">
+      <span>이전 기록</span>
+      <button type="button" class="history-clear-btn" onclick="clearHistory()" title="모두 삭제">
+        모두 지우기
+      </button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <div class="foot">
+    <strong>유튜브 · 인스타그램 · 틱톡 · 페이스북</strong> 등에서 저장할 수 있습니다<br>
+    <span class="sites">저장한 영상은 <strong>다운로드 폴더</strong>에 들어갑니다</span>
+    <div class="foot-actions">
+      <button type="button" class="foot-btn" onclick="openDownloadFolder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>다운로드 폴더 열기</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+let currentFormat = 'video';
+let items = [];
+
+const urlInput = document.getElementById('urlInput');
+const dlBtn = document.getElementById('dlBtn');
+const itemsEl = document.getElementById('items');
+const downloadsEl = document.getElementById('downloads');
+const toastEl = document.getElementById('toast');
+
+let updateStatus = null;
+
+async function loadUpdateStatus() {
+  try {
+    const res = await fetch('/api/updates/status');
+    updateStatus = await res.json();
+    renderUpdateBadge();
+  } catch (err) { /* silent on network error */ }
+}
+
+function renderUpdateBadge() {
+  const el = document.getElementById('updateBadge');
+  if (!el || !updateStatus) return;
+  const yt = updateStatus.ytdlp || {};
+  if (yt.update_available) {
+    el.textContent = '새 업데이트가 있어요';
+    el.className = 'update-badge';
+    el.style.display = 'inline-flex';
+  } else if (yt.current) {
+    el.textContent = '최신 상태';
+    el.className = 'update-badge ok';
+    el.style.display = 'inline-flex';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function showUpdatePanel() {
+  const panel = document.getElementById('updatePanel');
+  if (!panel) return;
+  // Backdrop
+  let bd = document.getElementById('upBackdrop');
+  if (!bd) {
+    bd = build('div', { class: 'up-backdrop', id: 'upBackdrop', onclick: closeUpdatePanel });
+    document.body.appendChild(bd);
+  }
+  panel.style.display = 'block';
+  bd.style.display = 'block';
+  populateUpdatePanel();
+}
+
+function closeUpdatePanel() {
+  const panel = document.getElementById('updatePanel');
+  const bd = document.getElementById('upBackdrop');
+  if (panel) panel.style.display = 'none';
+  if (bd) bd.style.display = 'none';
+}
+
+function populateUpdatePanel() {
+  if (!updateStatus) return;
+  const app = updateStatus.app || {};
+  const yt = updateStatus.ytdlp || {};
+
+  document.getElementById('upAppVersion').textContent = `v${app.version || '?'}`;
+  const appStatus = document.getElementById('upAppStatus');
+  appStatus.textContent = '최신';
+  appStatus.className = 'up-status ok';
+
+  document.getElementById('upYtdlpVersion').textContent =
+    yt.current ? `현재 ${yt.current}` : '엔진 정보를 가져오지 못했습니다';
+
+  const actionEl = document.getElementById('upYtdlpAction');
+  while (actionEl.firstChild) actionEl.removeChild(actionEl.firstChild);
+
+  if (yt.update_available) {
+    const stat = build('span', { class: 'up-status new' }, `↑ ${yt.latest} 나옴`);
+    const btn = build('button', {
+      class: 'up-btn',
+      id: 'ytdlpUpdateBtn',
+      onclick: startYtdlpUpdate,
+    }, '업데이트');
+    actionEl.appendChild(stat);
+    actionEl.appendChild(btn);
+  } else if (yt.current) {
+    actionEl.appendChild(build('span', { class: 'up-status ok' }, '✓ 최신'));
+  } else {
+    actionEl.appendChild(build('span', { class: 'up-status err' }, '확인 실패'));
+  }
+}
+
+async function startYtdlpUpdate() {
+  const btn = document.getElementById('ytdlpUpdateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '내려받는 중…'; }
+  try {
+    await fetch('/api/updates/ytdlp', { method: 'POST' });
+    // Poll status
+    const iv = setInterval(async () => {
+      try {
+        const r = await fetch('/api/updates/ytdlp/status');
+        const data = await r.json();
+        if (data.status === 'done') {
+          clearInterval(iv);
+          if (btn) { btn.textContent = '✓ 완료'; }
+          showToast('업데이트가 완료되었습니다', 'ok');
+          setTimeout(() => { loadUpdateStatus(); closeUpdatePanel(); }, 1200);
+        } else if (data.status === 'error') {
+          clearInterval(iv);
+          if (btn) { btn.disabled = false; btn.textContent = '다시 시도'; }
+          showToast('업데이트 실패: ' + (data.error || ''), 'err');
+        }
+      } catch (e) {
+        clearInterval(iv);
+        if (btn) { btn.disabled = false; btn.textContent = '다시 시도'; }
+      }
+    }, 1500);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '업데이트'; }
+    showToast('업데이트를 시작할 수 없습니다', 'err');
+  }
+}
+
+// Check updates on load (throttled) + when panel is shown
+document.addEventListener('DOMContentLoaded', () => {
+  // Only re-check if it's been > 1 hour since last check
+  try {
+    const last = parseInt(localStorage.getItem('clipdown.lastUpdateCheck') || '0', 10);
+    if (Date.now() - last > 3600 * 1000) {
+      loadUpdateStatus();
+      localStorage.setItem('clipdown.lastUpdateCheck', String(Date.now()));
+    } else {
+      loadUpdateStatus();  // still fetch for the badge, but cached info is ok
+    }
+  } catch (e) {
+    loadUpdateStatus();
+  }
+});
+
+let historyItems = [];
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history?limit=50');
+    const data = await res.json();
+    historyItems = data.history || [];
+    renderHistory();
+  } catch (err) {
+    console.error('loadHistory', err);
+  }
+}
+
+function fmtRelDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+  const diffMs = Date.now() - d.getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return '방금 전';
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.round(hr / 24);
+  if (day < 30) return `${day}일 전`;
+  return d.toLocaleDateString('ko-KR');
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const wrap = document.getElementById('history');
+  if (!list || !wrap) return;
+
+  if (!historyItems.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  historyItems.forEach(h => {
+    const isAudio = h.format === 'audio';
+    const icon = build('div', { class: 'history-icon' + (isAudio ? ' audio' : '') },
+      isAudio
+        ? '♫'  // musical note (subtle)
+        : (function(){
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '2');
+            svg.setAttribute('stroke-linecap', 'round');
+            svg.setAttribute('stroke-linejoin', 'round');
+            svg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+            return svg;
+          })());
+
+    const body = build('div', { class: 'history-body' });
+    body.appendChild(build('div', { class: 'history-title' }, h.title || h.filename || h.url));
+
+    const meta = build('div', { class: 'history-meta' });
+    if (h.format) meta.appendChild(build('span', { class: 'badge' }, isAudio ? 'MP3' : 'MP4'));
+    if (h.source_site) meta.appendChild(build('span', {}, h.source_site));
+    if (h.file_size) meta.appendChild(build('span', {}, fmtSize(h.file_size)));
+    meta.appendChild(build('span', {}, fmtRelDate(h.created_at)));
+    if (h.start_time || h.end_time) {
+      meta.appendChild(build('span', { class: 'badge' },
+        `${h.start_time || '0'} → ${h.end_time || '끝'}`));
+    }
+    body.appendChild(meta);
+
+    const actions = build('div', { class: 'history-actions' });
+    actions.appendChild(build('button', {
+      class: 'history-btn primary',
+      onclick: () => redownloadFromHistory(h.id),
+      title: '다시 다운로드',
+    }, '↻ 다시 받기'));
+    actions.appendChild(build('button', {
+      class: 'history-btn danger',
+      onclick: () => deleteFromHistory(h.id),
+      title: '삭제',
+    }, '×'));
+
+    const item = build('div', { class: 'history-item' }, [icon, body, actions]);
+    list.appendChild(item);
+  });
+}
+
+async function redownloadFromHistory(hid) {
+  try {
+    const res = await fetch(`/api/history/${hid}/redownload`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      showToast('다시 받기 실패: ' + data.error, 'err');
+      return;
+    }
+    // Create in-memory item to track progress
+    const h = historyItems.find(x => x.id === hid);
+    const item = {
+      idx: items.length,
+      url: h?.url || '',
+      format: h?.format || 'video',
+      title: h?.title || '영상',
+      status: 'downloading',
+      progress: 0,
+      jobId: data.job_id,
+    };
+    items.push(item);
+    downloadsEl.style.display = 'block';
+    renderItem(item);
+    pollJob(item, () => { loadHistory(); });
+    showToast('다시 저장을 시작합니다', 'ok');
+  } catch (err) {
+    showToast('다시 받기 실패', 'err');
+  }
+}
+
+async function deleteFromHistory(hid) {
+  if (!confirm('이 항목을 목록에서 지울까요? (저장한 파일은 지워지지 않습니다)')) return;
+  try {
+    await fetch(`/api/history/${hid}`, { method: 'DELETE' });
+    historyItems = historyItems.filter(h => h.id !== hid);
+    renderHistory();
+    showToast('삭제했습니다', 'ok');
+  } catch (err) {
+    showToast('삭제 실패', 'err');
+  }
+}
+
+async function clearHistory() {
+  if (!confirm('모든 이력을 지울까요? (저장한 파일은 지워지지 않습니다)')) return;
+  try {
+    await fetch('/api/history/clear', { method: 'POST' });
+    historyItems = [];
+    renderHistory();
+    showToast('모두 지웠습니다', 'ok');
+  } catch (err) {
+    showToast('지우기 실패', 'err');
+  }
+}
+
+// Load history when page opens
+document.addEventListener('DOMContentLoaded', loadHistory);
+
+async function pasteFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || !text.trim()) {
+      showToast('복사한 내용이 없습니다', 'err');
+      return;
+    }
+    urlInput.value = text.trim();
+    urlInput.focus();
+    showToast('붙여넣기 완료', 'ok');
+  } catch (err) {
+    // Fallback: user must paste manually
+    urlInput.focus();
+    urlInput.select();
+    showToast('브라우저에서 붙여넣기를 허용해 주세요. 또는 Ctrl+V 를 누르세요.', 'err');
+  }
+}
+
+async function openDownloadFolder() {
+  try {
+    const res = await fetch('/api/open_folder', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) {
+      showToast('폴더를 열 수 없습니다: ' + data.error, 'err');
+    } else {
+      showToast('폴더를 열었습니다', 'ok');
+    }
+  } catch (err) {
+    showToast('폴더를 열 수 없습니다', 'err');
+  }
+}
+
+function pickFormat(fmt) {
+  currentFormat = fmt;
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.toggle('active', b.dataset.fmt === fmt));
+  try { localStorage.setItem('clipdown.format', fmt); } catch (e) { /* private mode */ }
+}
+
+// Restore last-chosen format on load (defaults to 'video')
+function restoreFormatPreference() {
+  let saved = 'video';
+  try {
+    const v = localStorage.getItem('clipdown.format');
+    if (v === 'video' || v === 'audio') saved = v;
+  } catch (e) {}
+  pickFormat(saved);
+}
+document.addEventListener('DOMContentLoaded', restoreFormatPreference);
+
+function toggleTrim() {
+  const on = document.getElementById('trimEnable').checked;
+  document.getElementById('trimFields').style.display = on ? 'block' : 'none';
+  if (on) setTimeout(() => document.getElementById('startTime').focus(), 100);
+}
+
+function isValidTime(s) {
+  if (!s) return true;
+  if (!/^\d+(?::\d+){0,2}(?:\.\d+)?$/.test(s)) return false;
+  const parts = s.split(':').map(Number);
+  if (parts.some(isNaN)) return false;
+  if (parts.length === 2 && parts[1] >= 60) return false;
+  if (parts.length === 3 && (parts[1] >= 60 || parts[2] >= 60)) return false;
+  return true;
+}
+
+function showToast(msg, type) {
+  toastEl.className = 'toast ' + (type || '');
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(() => toastEl.classList.remove('show'), 5000);
+}
+
+function build(tag, attrs, children) {
+  const el = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    if (k === 'class') el.className = attrs[k];
+    else if (k.startsWith('on')) el[k] = attrs[k];
+    else el.setAttribute(k, attrs[k]);
+  }
+  if (children) for (const c of [].concat(children)) {
+    if (c == null) continue;
+    if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+    else el.appendChild(c);
+  }
+  return el;
+}
+
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') startDownload(); });
+
+async function startDownload() {
+  const url = urlInput.value.trim();
+  if (!url || !url.startsWith('http')) {
+    showToast('영상 주소를 정확히 붙여넣어 주세요', 'err');
+    urlInput.focus();
+    return;
+  }
+
+  let startTime = '', endTime = '';
+  const trimOn = document.getElementById('trimEnable')?.checked;
+  if (trimOn) {
+    startTime = document.getElementById('startTime').value.trim();
+    endTime = document.getElementById('endTime').value.trim();
+    if (!isValidTime(startTime)) { showToast('시작 시간을 다시 확인해 주세요 (예: 0:15)', 'err'); document.getElementById('startTime').focus(); return; }
+    if (!isValidTime(endTime))   { showToast('끝 시간을 다시 확인해 주세요 (예: 1:30)', 'err'); document.getElementById('endTime').focus(); return; }
+    if (!startTime && !endTime)  { showToast('시작 또는 끝 시간 중 하나는 꼭 입력해 주세요', 'err'); return; }
+  }
+
+  dlBtn.disabled = true;
+  const originalLabel = dlBtn.querySelector('span:last-child');
+  const originalText = originalLabel.textContent;
+  originalLabel.textContent = '영상 정보 가져오는 중...';
+  dlBtn.querySelector('.arrow').style.display = 'none';
+  dlBtn.insertBefore(build('span', {class: 'spin'}), dlBtn.firstChild);
+
+  const restoreBtn = () => {
+    dlBtn.disabled = false;
+    const s = dlBtn.querySelector('.spin');
+    if (s) s.remove();
+    dlBtn.querySelector('.arrow').style.display = '';
+    originalLabel.textContent = originalText;
+  };
+
+  const item = { idx: items.length, url, format: currentFormat, startTime, endTime, status: 'info', progress: 0 };
+  items.push(item);
+  downloadsEl.style.display = 'block';
+  renderItem(item);
+
+  try {
+    const infoRes = await fetch('/api/info', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const info = await infoRes.json();
+
+    if (info.error) {
+      item.status = 'error'; item.error = translateError(info.error);
+      renderItem(item); showToast('오류: ' + item.error, 'err'); restoreBtn(); return;
+    }
+
+    item.title = info.title || '영상';
+    item.status = 'downloading';
+    renderItem(item);
+
+    originalLabel.textContent = '저장 중...';
+
+    const dlRes = await fetch('/api/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url, format: currentFormat,
+        format_id: info.formats?.[0]?.id || null,
+        title: info.title || '',
+        start_time: startTime,
+        end_time: endTime,
+      }),
+    });
+    const dlData = await dlRes.json();
+    if (dlData.error) {
+      item.status = 'error'; item.error = translateError(dlData.error);
+      renderItem(item); showToast('오류: ' + item.error, 'err'); restoreBtn(); return;
+    }
+    item.jobId = dlData.job_id;
+    pollJob(item, () => { restoreBtn(); urlInput.value = ''; urlInput.focus(); });
+  } catch (err) {
+    item.status = 'error'; item.error = '서버에 연결할 수 없습니다';
+    renderItem(item); showToast(item.error, 'err'); restoreBtn();
+  }
+}
+
+function pollJob(item, onDone) {
+  const iv = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/status/${item.jobId}`);
+      const data = await res.json();
+      item.progress = Math.round(data.progress || 0);
+      item.phase = data.phase;
+
+      if (data.status === 'done') {
+        clearInterval(iv);
+        item.status = 'done'; item.filename = data.filename; item.downloadToken = data.download_token;
+        renderItem(item); showToast('✓ 저장이 완료되었습니다!', 'ok');
+        saveFile(item); onDone && onDone();
+        // Refresh persistent history so the new entry shows immediately
+        loadHistory();
+      } else if (data.status === 'error') {
+        clearInterval(iv);
+        item.status = 'error'; item.error = translateError(data.error || '다운로드 실패');
+        renderItem(item); showToast('오류: ' + item.error, 'err');
+        onDone && onDone();
+      } else {
+        renderItem(item);
+      }
+    } catch {
+      clearInterval(iv);
+      item.status = 'error'; item.error = '연결이 끊어졌습니다';
+      renderItem(item); onDone && onDone();
+    }
+  }, 800);
+}
+
+function saveFile(item) {
+  const token = item.downloadToken ? `?token=${encodeURIComponent(item.downloadToken)}` : '';
+  const a = document.createElement('a');
+  a.href = `/api/file/${item.jobId}${token}`;
+  a.download = item.filename || '';
+  a.click();
+}
+
+function translatePhase(p) {
+  return ({
+    'queued': '대기 중',
+    'starting': '시작 중',
+    'downloading': '저장 중',
+    'merging': '합치는 중',
+    're-encoding': '변환 중',
+    'trimming': '자르는 중',
+    'done': '완료',
+  })[p] || p || '';
+}
+
+function translateError(err) {
+  if (!err) return '알 수 없는 오류가 생겼습니다';
+  if (err.includes('Unsupported URL')) return '이 사이트는 지원하지 않습니다';
+  if (err.includes('unavailable') || err.includes('Video unavailable')) return '영상을 볼 수 없습니다 (비공개이거나 삭제된 영상)';
+  if (err.includes('Private video')) return '비공개 영상입니다';
+  if (err.includes('Sign in')) return '로그인이 필요한 영상입니다';
+  if (err.includes('HTTP Error 403')) return '접근이 거부되었습니다';
+  if (err.includes('HTTP Error 404')) return '영상을 찾을 수 없습니다';
+  if (err.includes('copyright')) return '저작권 때문에 저장할 수 없는 영상입니다';
+  if (err.includes('geo') || err.includes('region')) return '우리나라에서 볼 수 없는 영상입니다';
+  if (err.includes('timed out') || err.includes('Timed out')) return '시간이 오래 걸려서 멈췄어요. 다시 시도해 주세요';
+  if (err.includes('DRM')) return '보호된 영상이라 저장할 수 없습니다';
+  return err.length > 80 ? err.slice(0, 80) + '...' : err;
+}
+
+function renderItem(item) {
+  let el = document.getElementById(`item-${item.idx}`);
+  if (!el) {
+    el = build('div', { id: `item-${item.idx}` });
+    itemsEl.insertBefore(el, itemsEl.firstChild);
+  }
+  while (el.firstChild) el.removeChild(el.firstChild);
+
+  el.className = 'item' + (item.status === 'done' ? ' done' : (item.status === 'error' ? ' err' : ''));
+
+  let iconCls = 'item-icon dl', iconChar = '⬇';
+  if (item.status === 'done') { iconCls = 'item-icon done'; iconChar = '✓'; }
+  else if (item.status === 'error') { iconCls = 'item-icon err'; iconChar = '!'; }
+  const icon = build('div', { class: iconCls }, iconChar);
+
+  const body = build('div', { class: 'item-body' });
+  body.appendChild(build('div', { class: 'item-title' }, item.title || item.url));
+
+  let statusText = '', statusCls = 'item-status';
+  if (item.status === 'info') statusText = '영상 정보 가져오는 중입니다...';
+  else if (item.status === 'downloading') statusText = `${translatePhase(item.phase)} · ${item.progress || 0}%`;
+  else if (item.status === 'done') { statusText = '✓  저장 완료 · ' + (item.filename || ''); statusCls += ' done'; }
+  else if (item.status === 'error') { statusText = '⚠  ' + (item.error || '실패'); statusCls += ' err'; }
+  body.appendChild(build('div', { class: statusCls }, statusText));
+
+  if (item.status === 'downloading') {
+    const prog = build('div', { class: 'item-progress' });
+    const fill = build('div', { class: 'item-progress-fill' });
+    fill.style.width = (item.progress || 0) + '%';
+    prog.appendChild(fill);
+    body.appendChild(prog);
+  }
+
+  el.appendChild(icon);
+  el.appendChild(body);
+
+  if (item.status === 'done') {
+    el.appendChild(build('button', { class: 'item-btn', onclick: () => saveFile(item) }, '다시 저장'));
+  } else if (item.status === 'error') {
+    el.appendChild(build('button', { class: 'item-btn', onclick: () => {
+      urlInput.value = item.url; pickFormat(item.format); startDownload();
+    } }, '다시 시도'));
+  }
+}
+</script>
+</body>
+</html>

@@ -8,3 +8,31 @@ assets/*.mov
 .env.local
 .env.production
 .env.development
+
+# Tauri updater signing keys (never commit)
+tauri-app/.keys/
+tauri-app/src-tauri/target/
+tauri-app/node_modules/
+
+# Windows portable bundle (built via CI or locally; too large for git)
+ClipDown-Portable/
+ClipDown-*.zip
+
+# User data / runtime state
+*.db
+*.db-shm
+*.db-wal
+config.json
+settings.json
+hymns/
+design/
+
+# Old / stray artifacts
+Public-Start.bat
+Public-Start.sh
+Tailscale-Start.sh
+README_WINDOWS.md
+reclip.bat
+setup.bat
+tray.py
+공개접속_안내.txt

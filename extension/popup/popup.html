@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <a href="https://github.com/averygan/reclip" target="_blank" class="logo-link"><h1>ClipDown</h1></a>
+      <button id="server-status" class="server-btn" title="Check server">
+        <span class="server-dot"></span>
+        <span class="server-label">...</span>
+      </button>
+    </div>
+    <div class="format-toggle">
+      <button class="fmt-btn active" data-fmt="video">MP4</button>
+      <button class="fmt-btn" data-fmt="audio">MP3</button>
+    </div>
+  </header>
+
+  <div class="runtime-bar">
+    <span class="runtime-label">Runtime:</span>
+    <span id="runtime-badge" class="runtime-badge" title="Time until download started">0.0s</span>
+    <span id="runtime-status" class="runtime-status">⏱ counting...</span>
+  </div>
+
+  <div id="status-bar" class="status-bar hidden">
+    <span id="status-text"></span>
+  </div>
+
+  <div id="media-list" class="media-list">
+    <div class="empty-state">
+      <p>Scanning page...</p>
+    </div>
+  </div>
+
+  <div id="log-panel" class="log-panel hidden">
+    <div class="log-header">
+      <span>Log</span>
+      <div class="log-header-right">
+        <span id="log-phase" class="log-phase"></span>
+        <button id="log-copy" class="log-copy-btn" title="Copy log">Copy</button>
+      </div>
+    </div>
+    <div id="log-progress-wrap" class="log-progress-wrap hidden">
+      <div class="log-progress-bar">
+        <div id="log-progress-fill" class="log-progress-fill" style="width:0%"></div>
+      </div>
+      <span id="log-progress-text" class="log-progress-text">0%</span>
+    </div>
+    <div id="log-body" class="log-body">
+      <div id="log-content" class="log-content"></div>
+    </div>
+  </div>
+
+  <div class="options-bar">
+    <label class="opt-toggle" title="Auto-download as MP3 when popup opens">
+      <input type="checkbox" id="auto-mp3">
+      <span>Auto MP3</span>
+    </label>
+    <label class="opt-toggle" title="Skip Chrome cookie auth — saves 2-3s for public videos">
+      <input type="checkbox" id="fast-mode">
+      <span>Fast mode</span>
+    </label>
+    <label class="opt-toggle" title="Force re-encoding to H264 (slower but max compatibility for older devices)">
+      <input type="checkbox" id="force-h264">
+      <span>Force H264</span>
+    </label>
+  </div>
+
+  <footer>
+    <label class="select-all">
+      <input type="checkbox" id="select-all"> Select All
+    </label>
+    <span id="count">0 items</span>
+    <button id="download-btn" class="dl-btn" disabled>Download</button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

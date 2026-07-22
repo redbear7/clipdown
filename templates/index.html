@@ -3,687 +3,645 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ReClip — Free Media Downloader</title>
+  <title>ClipDown v1.0</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f4f1eb;
-      --fg: #3a3a38;
+      --bg: #1a1a1a;
+      --bg-2: #232323;
+      --bg-3: #2d2d2d;
+      --border: #333333;
+      --fg: #f4f1eb;
+      --fg-dim: #9a968b;
       --accent: #e85d2a;
-      --accent-hover: #d04e1f;
-      --muted: #9c9889;
-      --card: #fff;
-      --card-border: #e2ded6;
-      --success: #2d8a4e;
-      --error: #c43d3d;
-      --radius: 14px;
-      --shimmer: linear-gradient(90deg, #ebe8e2 25%, #f0ede7 50%, #ebe8e2 75%);
+      --accent-hover: #f27141;
+      --accent-soft: rgba(232, 93, 42, 0.15);
+      --success: #4ade80;
+      --error: #f87171;
+      --warning: #fbbf24;
     }
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
+    html, body { height: 100%; overflow: hidden; }
     body {
-      font-family: 'DM Mono', monospace;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--fg);
-      min-height: 100vh;
-      overflow-x: hidden;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
     }
-
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      opacity: 0.03;
-      pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-      background-size: 128px;
+    .app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+    .sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px;
+      display: flex; flex-direction: column; gap: 4px;
+      overflow-y: auto;
     }
-
-    .page {
-      max-width: 620px;
-      margin: 0 auto;
-      padding: 60px 24px 80px;
+    .brand {
+      padding: 8px 12px 24px;
+      display: flex; align-items: baseline; gap: 6px;
+      -webkit-app-region: drag;
     }
-
-    .brand { margin-bottom: 48px; }
-    .brand h1 {
-      font-family: 'Instrument Serif', serif;
-      font-size: 4.2rem;
-      font-weight: 400;
-      letter-spacing: -0.03em;
-      line-height: 1;
-      color: var(--fg);
+    .brand-name { font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--fg); }
+    .brand-accent { font-family: 'Instrument Serif', serif; font-style: italic; color: var(--accent); font-size: 1.4rem; }
+    .brand-badge {
+      font-family: 'DM Mono', monospace; font-size: 0.6rem;
+      background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 4px; margin-left: 4px;
     }
-    .brand h1 em { font-style: italic; color: var(--accent); }
-    .brand p {
-      margin-top: 10px;
-      font-size: 0.78rem;
-      color: var(--muted);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+    .sidebar-section {
+      margin-top: 16px; padding: 0 12px 4px;
+      font-family: 'DM Mono', monospace; font-size: 0.65rem;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--fg-dim);
     }
-
-    textarea {
-      width: 100%;
-      padding: 18px 20px;
-      border: 1.5px solid var(--card-border);
-      border-radius: var(--radius);
-      background: var(--card);
-      color: var(--fg);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.88rem;
-      outline: none;
-      resize: none;
-      min-height: 56px;
-      transition: border-color 0.25s, box-shadow 0.25s;
-      margin-bottom: 6px;
+    .sidebar-item {
+      padding: 8px 12px; border-radius: 6px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.85rem; cursor: pointer; color: var(--fg);
+      user-select: none; transition: background 0.12s;
     }
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(232, 93, 42, 0.08);
+    .sidebar-item:hover { background: var(--bg-3); }
+    .sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+    .sidebar-item .icon { width: 16px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+    .sidebar-item .count {
+      margin-left: auto; font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      background: var(--bg-3); padding: 1px 6px; border-radius: 8px;
+      color: var(--fg-dim); min-width: 22px; text-align: center;
     }
-    textarea::placeholder { color: var(--muted); }
-
-    .hint {
-      font-size: 0.7rem;
-      color: var(--muted);
+    .sidebar-item.active .count { background: var(--accent); color: #fff; }
+    .sidebar-footer { margin-top: auto; padding-top: 20px; }
+    .main { display: flex; flex-direction: column; overflow: hidden; }
+    .titlebar-space { height: 28px; -webkit-app-region: drag; flex-shrink: 0; }
+    .content { flex: 1; overflow-y: auto; padding: 8px 32px 24px; }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
       margin-bottom: 20px;
-      letter-spacing: 0.02em;
     }
-
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 6px;
-      align-items: center;
+    .page-title { font-family: 'Instrument Serif', serif; font-size: 1.8rem; color: var(--fg); }
+    .page-title em { font-style: italic; color: var(--accent); }
+    .page-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 14px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-2); color: var(--fg);
+      font-size: 0.8rem; font-weight: 500; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: inherit; transition: all 0.12s;
     }
-    .pill-group {
-      display: flex;
-      border: 1.5px solid var(--card-border);
-      border-radius: 10px;
-      overflow: hidden;
-      background: var(--card);
+    .btn:hover { border-color: var(--fg-dim); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn.ghost { background: transparent; border-color: transparent; color: var(--fg-dim); }
+    .btn.ghost:hover { color: var(--fg); background: var(--bg-3); }
+    .url-drop {
+      background: var(--bg-2); border: 2px dashed var(--border);
+      border-radius: 10px; padding: 14px 16px;
+      display: flex; gap: 10px; align-items: center;
+      margin-bottom: 20px; transition: border-color 0.15s;
     }
-    .pill {
-      padding: 9px 18px;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.76rem;
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
+    .url-drop:focus-within { border-color: var(--accent); border-style: solid; }
+    .url-drop textarea {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--fg); font-family: 'DM Mono', monospace; font-size: 0.85rem;
+      resize: none; line-height: 1.5; min-height: 24px; max-height: 100px;
     }
-    .pill.active { background: var(--fg); color: var(--bg); }
-    .pill:not(.active):hover { color: var(--fg); }
-
-    .fetch-btn {
-      flex: 1;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 10px;
-      background: var(--accent);
-      color: #fff;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.82rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+    .url-drop textarea::placeholder { color: var(--fg-dim); }
+    .format-toggle {
+      display: flex; background: var(--bg-3); border-radius: 6px;
+      padding: 2px; flex-shrink: 0;
     }
-    .fetch-btn:hover { background: var(--accent-hover); }
-    .fetch-btn:active { transform: scale(0.98); }
-    .fetch-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    /* Cards */
-    .cards { margin-top: 24px; }
-
+    .format-toggle button {
+      background: transparent; border: none; padding: 6px 12px;
+      color: var(--fg-dim); font-family: 'DM Mono', monospace;
+      font-size: 0.75rem; cursor: pointer; border-radius: 4px;
+    }
+    .format-toggle button.active { background: var(--accent); color: #fff; }
     .card {
-      display: flex;
-      gap: 14px;
-      border: 1.5px solid var(--card-border);
-      border-radius: var(--radius);
-      background: var(--card);
-      padding: 14px;
-      margin-bottom: 10px;
-      animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; margin-bottom: 10px;
+      display: grid; grid-template-columns: 100px 1fr auto;
+      gap: 14px; align-items: center;
     }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
+    .card.downloading { border-color: var(--accent); }
+    .card.done { border-color: var(--success); }
+    .card.error { border-color: var(--error); }
+    .thumb {
+      width: 100px; height: 60px;
+      background: linear-gradient(135deg, var(--bg-3), var(--bg));
+      border-radius: 6px; display: flex; align-items: center;
+      justify-content: center; overflow: hidden; position: relative; flex-shrink: 0;
     }
-
-    .card-thumb {
-      width: 120px;
-      min-width: 120px;
-      height: 80px;
-      border-radius: 8px;
-      overflow: hidden;
-      background: var(--card-border);
-      flex-shrink: 0;
-      position: relative;
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb .site-tag {
+      position: absolute; top: 4px; left: 4px;
+      background: rgba(0,0,0,0.7); padding: 1px 5px;
+      border-radius: 3px; font-size: 0.6rem; color: #fff;
     }
-    .card-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    .thumb .duration {
+      position: absolute; bottom: 4px; right: 4px;
+      background: rgba(0,0,0,0.75); padding: 1px 5px;
+      border-radius: 3px; font-size: 0.6rem; color: #fff;
+      font-family: 'DM Mono', monospace;
     }
-    /* No-thumbnail icon */
-    .card-thumb .no-thumb {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
+    .thumb.audio {
+      background: linear-gradient(135deg, var(--accent), #b83a15);
+      color: #fff; font-size: 20px;
     }
-    .card-thumb .no-thumb svg {
-      width: 28px;
-      height: 28px;
-      opacity: 0.5;
+    .thumb.loading {
+      background: linear-gradient(90deg, var(--bg-3) 0%, var(--bg-2) 50%, var(--bg-3) 100%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite;
     }
-
-    /* Shimmer skeleton for loading state */
-    .card-thumb.loading {
-      background: var(--shimmer);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-    }
-    .skeleton-line {
-      height: 12px;
-      border-radius: 4px;
-      background: var(--shimmer);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite;
-      margin-bottom: 6px;
-    }
-    .skeleton-line.short { width: 40%; height: 10px; }
-    .skeleton-line.medium { width: 75%; }
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-
-    .card-body {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
+    .card-info { min-width: 0; }
     .card-title {
-      font-family: 'Instrument Serif', serif;
-      font-size: 1rem;
-      line-height: 1.3;
-      color: var(--fg);
-      margin-bottom: 2px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-weight: 500; font-size: 0.95rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg);
     }
     .card-meta {
-      font-size: 0.68rem;
-      color: var(--muted);
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
+      font-family: 'DM Mono', monospace; font-size: 0.75rem;
+      color: var(--fg-dim); margin-top: 4px;
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
     }
-
-    .card-actions {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
+    .card-meta .tag { color: var(--accent); }
+    .card-meta .sep { color: var(--fg-dim); opacity: 0.5; }
+    .progress {
+      height: 4px; background: var(--bg-3); border-radius: 2px;
+      margin-top: 8px; overflow: hidden;
     }
-
-    .card-dl-btn {
-      padding: 6px 14px;
-      border: none;
-      border-radius: 7px;
-      background: var(--fg);
-      color: var(--bg);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
+    .progress-fill {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      transition: width 0.3s ease;
     }
-    .card-dl-btn:hover { background: #2d2d2a; }
-    .card-dl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .card-dl-btn.done { background: var(--success); color: #fff; }
-    .card-dl-btn.error { background: var(--error); color: #fff; }
-
-    .card-status {
-      font-size: 0.68rem;
-      color: var(--muted);
+    .card-action { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+    .icon-btn {
+      width: 30px; height: 30px; border-radius: 6px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--fg-dim); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: all 0.12s;
     }
-    .card-status.downloading { color: var(--accent); }
-    .card-status.done { color: var(--success); }
-    .card-status.error { color: var(--error); }
-
+    .icon-btn:hover { background: var(--bg-3); color: var(--fg); border-color: var(--fg-dim); }
+    .status-icon {
+      width: 30px; height: 30px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .status-icon.done { color: var(--success); }
+    .status-icon.err { color: var(--error); }
+    .pct {
+      font-family: 'DM Mono', monospace; font-size: 0.85rem;
+      color: var(--accent); font-weight: 500;
+      min-width: 40px; text-align: right;
+    }
+    .q-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
     .q-chip {
-      padding: 4px 10px;
-      border: 1.5px solid var(--card-border);
-      border-radius: 6px;
-      background: transparent;
-      color: var(--muted);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.65rem;
-      cursor: pointer;
-      transition: all 0.2s;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--fg-dim); padding: 3px 8px; border-radius: 4px;
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      cursor: pointer; transition: all 0.12s;
     }
-    .q-chip.active {
-      border-color: var(--fg);
-      color: var(--fg);
-      background: rgba(26,26,24,0.04);
+    .q-chip:hover { color: var(--fg); border-color: var(--fg-dim); }
+    .q-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 60px 32px; color: var(--fg-dim);
     }
-    .q-chip:hover:not(.active) { border-color: var(--muted); }
+    .empty-icon {
+      width: 60px; height: 60px;
+      background: var(--accent-soft); color: var(--accent);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin-bottom: 16px;
+    }
+    .empty h3 { font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--fg); margin-bottom: 6px; }
+    .empty p { font-size: 0.85rem; text-align: center; max-width: 300px; }
+    .sites-footer {
+      margin-top: 24px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-family: 'DM Mono', monospace; font-size: 0.65rem;
+      color: var(--fg-dim); text-transform: uppercase;
+      letter-spacing: 0.08em; line-height: 1.8; text-align: center;
+    }
+    .page-view { display: none; }
+    .page-view.active { display: block; }
+    .dots { display: inline-flex; gap: 3px; }
+    .dots span {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--accent); animation: dot 1.2s infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot {
+      0%, 60%, 100% { opacity: 0.3; }
+      30% { opacity: 1; }
+    }
+    .placeholder-page {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 60px 32px;
+      color: var(--fg-dim); min-height: 400px;
+    }
+    .placeholder-page h3 { font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--fg); margin-bottom: 6px; }
+    .placeholder-page .badge {
+      display: inline-block; background: var(--accent-soft);
+      color: var(--accent); padding: 3px 10px; border-radius: 12px;
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--fg-dim); }
 
-    /* Error card */
-    .card.card-error {
-      border-color: rgba(196, 61, 61, 0.2);
-      background: rgba(196, 61, 61, 0.03);
-    }
-    .card-error-icon {
-      width: 100%;
-      height: 100%;
-      display: flex;
+    /* Subscriptions */
+    .sub-card {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      gap: 14px;
       align-items: center;
-      justify-content: center;
-      background: rgba(196, 61, 61, 0.08);
-      color: var(--error);
-    }
-    .card-error-icon svg {
-      width: 24px;
-      height: 24px;
-    }
-    .card-error-msg {
-      font-size: 0.72rem;
-      color: var(--error);
-      margin-top: 2px;
-      line-height: 1.4;
-    }
-    .card-error-url {
-      font-size: 0.65rem;
-      color: var(--muted);
-      word-break: break-all;
-      margin-top: 4px;
-    }
-
-    /* Download all bar */
-    .dl-all-bar {
-      display: flex;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    .dl-all-btn {
-      flex: 1;
-      padding: 12px;
-      border: none;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
       border-radius: 10px;
-      background: var(--fg);
-      color: var(--bg);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.82rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      padding: 14px;
+      margin-bottom: 10px;
     }
-    .dl-all-btn:hover { background: #2d2d2a; }
-    .dl-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .spin {
-      display: inline-block;
-      width: 10px; height: 10px;
-      border: 2px solid currentColor;
-      border-right-color: transparent;
+    .sub-avatar {
+      width: 48px; height: 48px;
       border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle;
+      background: linear-gradient(135deg, var(--accent), #b83a15);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; font-size: 18px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .sub-middle { min-width: 0; }
+    .sub-name-row { display: flex; align-items: center; gap: 8px; }
+    .sub-name {
+      font-weight: 600; color: var(--fg);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sub-new-badge {
+      color: var(--accent); font-size: 0.72rem;
+      font-family: 'DM Mono', monospace;
+    }
+    .sub-info {
+      font-family: 'DM Mono', monospace; font-size: 0.72rem;
+      color: var(--fg-dim); margin-top: 2px;
+    }
+    .sub-url {
+      font-family: 'DM Mono', monospace; font-size: 0.68rem;
+      color: var(--fg-dim); opacity: 0.7; margin-top: 3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sub-actions { display: flex; gap: 6px; align-items: center; }
+    .sw {
+      width: 40px; height: 22px; background: var(--bg-3);
+      border-radius: 11px; position: relative; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sw::after {
+      content: ''; position: absolute;
+      width: 18px; height: 18px; background: #fff;
+      border-radius: 50%; top: 2px; left: 2px;
+      transition: left 0.2s;
+    }
+    .sw.on { background: var(--accent); }
+    .sw.on::after { left: 20px; }
+    .sub-empty {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 60px 20px; color: var(--fg-dim); text-align: center;
+    }
+    .sub-empty h3 { font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--fg); margin: 12px 0 6px; }
 
-    .footer {
-      margin-top: 48px;
-      text-align: center;
-      font-size: 0.68rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
+    /* Toast */
+    .subs-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-3);
+      color: var(--fg);
+      padding: 10px 18px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 100;
+    }
+    .subs-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Settings */
+    .save-indicator {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--success);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .save-indicator.show { opacity: 1; }
+    .setting-row {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+    .setting-row.col {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .setting-info { min-width: 0; flex: 1; }
+    .setting-label { font-weight: 500; color: var(--fg); }
+    .setting-desc {
+      font-size: 0.78rem; color: var(--fg-dim); margin-top: 3px;
+    }
+    .input-mono {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--fg);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 280px;
+    }
+    .input-mono:focus { border-color: var(--accent); }
+    .input-mono.big {
+      width: 100%; padding: 12px 14px; font-size: 0.9rem;
+    }
+    .var-chips {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .var-chip {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      color: var(--fg-dim);
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .var-chip:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .preview-box {
+      background: var(--bg-3);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .preview-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--fg-dim);
       text-transform: uppercase;
-      line-height: 1.8;
+      letter-spacing: 0.1em;
+      margin-bottom: 5px;
     }
-
-    /* Mobile */
-    @media (max-width: 500px) {
-      .brand h1 { font-size: 3rem; }
-      .page { padding: 40px 16px 60px; }
-      .card { flex-direction: column; gap: 10px; }
-      .card-thumb {
-        width: 100%;
-        min-width: unset;
-        height: 160px;
-      }
-      .card-title { white-space: normal; }
-      .controls { flex-wrap: wrap; }
-      .fetch-btn { width: 100%; }
+    .preview-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--fg);
+      word-break: break-all;
+    }
+    .switch-lbl { cursor: pointer; }
+    .switch-lbl input { display: none; }
+    .sw2 {
+      display: inline-block;
+      width: 40px; height: 22px;
+      background: var(--bg-3);
+      border-radius: 11px;
+      position: relative;
+      transition: background 0.2s;
+    }
+    .sw2::after {
+      content: ''; position: absolute;
+      width: 18px; height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      top: 2px; left: 2px;
+      transition: left 0.2s;
+    }
+    .switch-lbl input:checked + .sw2 { background: var(--accent); }
+    .switch-lbl input:checked + .sw2::after { left: 20px; }
+    .pill-group {
+      display: flex;
+      background: var(--bg-3);
+      border-radius: 6px;
+      padding: 2px;
+    }
+    .pill-group button {
+      background: transparent;
+      border: none;
+      padding: 6px 12px;
+      color: var(--fg-dim);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .pill-group button.active {
+      background: var(--accent);
+      color: #fff;
     }
   </style>
 </head>
 <body>
-  <div class="page">
+<div class="app">
+  <aside class="sidebar">
     <div class="brand">
-      <h1>Re<em>Clip</em></h1>
-      <p>Free media downloader</p>
+      <span class="brand-name">Clip</span><span class="brand-accent">Down</span>
+      <span class="brand-badge">v1.0</span>
     </div>
-
-    <textarea id="urls" placeholder="Paste one or more URLs..." rows="2"></textarea>
-    <p class="hint">Multiple links? Separate with spaces, commas, or newlines.</p>
-
-    <div class="controls">
-      <div class="pill-group">
-        <button class="pill active" data-format="video" onclick="setFormat(this)">MP4</button>
-        <button class="pill" data-format="audio" onclick="setFormat(this)">MP3</button>
+    <div class="sidebar-section">Downloads</div>
+    <div class="sidebar-item active" data-nav="queue">
+      <span class="icon">▼</span> Queue
+      <span class="count" id="count-queue">0</span>
+    </div>
+    <div class="sidebar-item" data-nav="history">
+      <span class="icon">✓</span> History
+      <span class="count" id="count-history">0</span>
+    </div>
+    <div class="sidebar-section">Sources</div>
+    <div class="sidebar-item" data-nav="subscriptions">
+      <span class="icon">◉</span> Subscriptions
+      <span class="count" id="count-subs">0</span>
+    </div>
+    <div class="sidebar-item" data-nav="scheduled">
+      <span class="icon">⏱</span> Scheduled
+      <span class="count" id="count-sched">0</span>
+    </div>
+    <div class="sidebar-footer">
+      <div class="sidebar-item" data-nav="settings">
+        <span class="icon">⚙</span> Settings
       </div>
-      <button class="fetch-btn" id="goBtn" onclick="go()">Fetch</button>
     </div>
-
-    <div id="cards" class="cards"></div>
-
-    <div class="footer">
-      YouTube &middot; TikTok &middot; Instagram &middot; Twitter/X &middot; Reddit &middot; Facebook<br>
-      Vimeo &middot; Twitch &middot; Dailymotion &middot; SoundCloud &middot; Loom &middot; Streamable<br>
-      Pinterest &middot; Tumblr &middot; Threads &middot; LinkedIn &middot; 1000+ more
-    </div>
-  </div>
-
-  <script>
-    let currentFormat = 'video';
-    let cardData = [];
-
-    function setFormat(btn) {
-      document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentFormat = btn.dataset.format;
-    }
-
-    function parseUrls(text) {
-      return [...new Set(text.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http')))];
-    }
-
-    function fmtDur(s) {
-      if (!s) return '';
-      const m = Math.floor(s / 60);
-      const sec = Math.floor(s % 60);
-      return `${m}:${sec.toString().padStart(2, '0')}`;
-    }
-
-    function esc(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
-
-    function friendlyError(err) {
-      if (err.includes('Unsupported URL')) return 'This URL is not supported';
-      if (err.includes('Video unavailable')) return 'Video is unavailable or private';
-      if (err.includes('Private video')) return 'This video is private';
-      if (err.includes('HTTP Error 403')) return 'Access denied by the platform';
-      if (err.includes('HTTP Error 404')) return 'Video not found';
-      if (err.includes('copyright')) return 'Video blocked due to copyright';
-      if (err.includes('geo')) return 'Video not available in your region';
-      if (err.includes('timed out') || err.includes('Timed out')) return 'Request timed out — try again';
-      if (err.includes('network') || err.includes('Network')) return 'Network error — check your connection';
-      return err.length > 80 ? err.slice(0, 80) + '...' : err;
-    }
-
-    document.getElementById('urls').addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); }
-    });
-
-    async function go() {
-      const urls = parseUrls(document.getElementById('urls').value);
-      if (!urls.length) return;
-
-      const btn = document.getElementById('goBtn');
-      const container = document.getElementById('cards');
-      btn.disabled = true;
-      btn.textContent = 'Loading...';
-      container.innerHTML = '';
-      cardData = [];
-
-      for (let i = 0; i < urls.length; i++) {
-        const url = urls[i];
-        const idx = cardData.length;
-        cardData.push({ url, status: 'loading' });
-        renderCard(idx);
-
-        try {
-          const res = await fetch('/api/info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-          });
-          const data = await res.json();
-          if (data.error) {
-            cardData[idx] = { ...cardData[idx], status: 'info-error', error: data.error };
-          } else {
-            cardData[idx] = {
-              ...cardData[idx],
-              status: 'ready',
-              title: data.title || '',
-              thumbnail: data.thumbnail || '',
-              duration: data.duration,
-              uploader: data.uploader || '',
-              formats: data.formats || [],
-              selectedFormatId: data.formats?.[0]?.id || null,
-            };
-          }
-        } catch (err) {
-          cardData[idx] = { ...cardData[idx], status: 'info-error', error: err.message };
-        }
-        renderCard(idx);
-      }
-
-      if (cardData.filter(c => c.status === 'ready').length > 1) {
-        renderDownloadAll();
-      }
-
-      btn.disabled = false;
-      btn.textContent = 'Fetch';
-    }
-
-    function renderCard(idx) {
-      const c = cardData[idx];
-      let el = document.getElementById(`card-${idx}`);
-      if (!el) {
-        el = document.createElement('div');
-        el.id = `card-${idx}`;
-        el.className = 'card';
-        document.getElementById('cards').appendChild(el);
-      }
-
-      // Loading skeleton
-      if (c.status === 'loading') {
-        el.className = 'card';
-        el.innerHTML = `
-          <div class="card-thumb loading"></div>
-          <div class="card-body">
-            <div class="skeleton-line medium"></div>
-            <div class="skeleton-line short"></div>
+  </aside>
+  <main class="main">
+    <div class="titlebar-space"></div>
+    <div class="content">
+      <section class="page-view active" data-page="queue">
+        <div class="page-header">
+          <h2 class="page-title">Download <em>Queue</em></h2>
+          <div class="page-actions">
+            <button class="btn ghost" onclick="clearCompleted()">Clear Done</button>
           </div>
-        `;
-        return;
-      }
-
-      // Error state
-      if (c.status === 'info-error') {
-        el.className = 'card card-error';
-        el.innerHTML = `
-          <div class="card-thumb">
-            <div class="card-error-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="card-title" style="color:var(--error)">Could not fetch video</div>
-            <div class="card-error-msg">${esc(friendlyError(c.error || ''))}</div>
-            <div class="card-error-url">${esc(c.url)}</div>
-          </div>
-        `;
-        return;
-      }
-
-      // Ready / downloading / done / error states
-      el.className = 'card';
-      const isAudio = currentFormat === 'audio';
-
-      let thumbHtml;
-      if (isAudio) {
-        thumbHtml = `<div class="no-thumb" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
-      } else if (c.thumbnail) {
-        thumbHtml = `<img src="${c.thumbnail}" alt="">`;
-      } else {
-        thumbHtml = `<div class="no-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>`;
-      }
-
-      let qualityChips = '';
-      if (!isAudio && c.formats && c.formats.length > 1) {
-        qualityChips = c.formats.map(f =>
-          `<button class="q-chip${f.id === c.selectedFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
-        ).join('');
-      }
-
-      let actionHtml = '';
-      if (c.status === 'ready') {
-        actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">Download</button>${qualityChips}`;
-      } else if (c.status === 'downloading') {
-        actionHtml = `<span class="card-status downloading"><span class="spin"></span> Downloading...</span>`;
-      } else if (c.status === 'done') {
-        actionHtml = `<button class="card-dl-btn done" onclick="saveCard(${idx})">Save</button>
-          <span class="card-status done">${esc(c.filename || '')}</span>`;
-      } else if (c.status === 'error') {
-        actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">Retry</button>
-          <span class="card-status error">${esc(friendlyError(c.error || 'Download failed'))}</span>`;
-      }
-
-      el.innerHTML = `
-        <div class="card-thumb">${thumbHtml}</div>
-        <div class="card-body">
-          <div class="card-title">${esc(c.title || 'Untitled')}</div>
-          <div class="card-meta">${esc(c.uploader)}${c.duration ? ' · ' + fmtDur(c.duration) : ''}</div>
-          <div class="card-actions">${actionHtml}</div>
         </div>
-      `;
-    }
+        <div class="url-drop">
+          <textarea id="urls" placeholder="Paste one or more URLs, or drag files here..." rows="1"></textarea>
+          <div class="format-toggle">
+            <button class="active" data-format="video" onclick="setFormat(this)">MP4</button>
+            <button data-format="audio" onclick="setFormat(this)">MP3</button>
+          </div>
+          <button class="btn primary" id="goBtn" onclick="go()">Fetch</button>
+        </div>
+        <div id="cards"></div>
+        <div id="empty-state" class="empty">
+          <div class="empty-icon">▶</div>
+          <h3>Ready to download</h3>
+          <p>Paste a URL above from YouTube, Instagram, TikTok, or 1000+ other sites.</p>
+        </div>
+        <div class="sites-footer">
+          YouTube · TikTok · Instagram · Twitter/X · Reddit · Facebook<br>
+          Vimeo · Twitch · Dailymotion · SoundCloud · Loom · Streamable<br>
+          Pinterest · Tumblr · Threads · LinkedIn · 1000+ more
+        </div>
+      </section>
+      <section class="page-view" data-page="history">
+        <div class="page-header"><h2 class="page-title">Download <em>History</em></h2></div>
+        <div class="placeholder-page">
+          <div class="badge">Coming Soon</div>
+          <h3>Download history</h3>
+          <p>Search past downloads, re-download files, and track your library.</p>
+        </div>
+      </section>
+      <section class="page-view" data-page="subscriptions">
+        <div class="page-header">
+          <h2 class="page-title">Channel <em>Subscriptions</em></h2>
+          <div class="page-actions">
+            <button class="btn ghost" id="subs-check-all" onclick="checkAllSubs()">Check All</button>
+            <button class="btn primary" onclick="addSubscription()">+ Subscribe</button>
+          </div>
+        </div>
+        <div id="subs-list"></div>
+      </section>
+      <section class="page-view" data-page="scheduled">
+        <div class="page-header"><h2 class="page-title">Scheduled <em>Downloads</em></h2></div>
+        <div class="placeholder-page">
+          <div class="badge">Coming Soon</div>
+          <h3>Scheduled tasks</h3>
+          <p>Set up recurring downloads or delayed jobs.</p>
+        </div>
+      </section>
+      <section class="page-view" data-page="settings">
+        <div class="page-header">
+          <h2 class="page-title">Files <em>&amp; Naming</em></h2>
+          <span id="set-saved-indicator" class="save-indicator"></span>
+        </div>
 
-    function renderDownloadAll() {
-      const existing = document.getElementById('dl-all-bar');
-      if (existing) existing.remove();
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Download folder</div>
+            <div class="setting-desc">Where files are saved (browser default is used if empty)</div>
+          </div>
+          <input type="text" id="set-folder" class="input-mono" placeholder="~/Downloads/ClipDown"
+                 onchange="persistSettings({download_folder: this.value})">
+        </div>
 
-      const bar = document.createElement('div');
-      bar.id = 'dl-all-bar';
-      bar.className = 'dl-all-bar';
-      bar.innerHTML = `<button class="dl-all-btn" onclick="dlAll()">Download All</button>`;
-      document.getElementById('cards').appendChild(bar);
-    }
+        <div class="setting-row col">
+          <div class="setting-info">
+            <div class="setting-label">Filename template</div>
+            <div class="setting-desc">Click a variable below to insert. Preview updates live.</div>
+          </div>
+          <input type="text" id="set-template" class="input-mono big"
+                 value="{date}_{title}"
+                 oninput="persistSettings({filename_template: this.value}); schedulePreview();">
 
-    function pickFormat(idx, formatId) {
-      cardData[idx].selectedFormatId = formatId;
-      renderCard(idx);
-    }
+          <div class="var-chips">
+            <button class="var-chip" onclick="insertTemplateVar('{date}')">{date}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{title}')">{title}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{channel}')">{channel}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{site}')">{site}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{resolution}')">{resolution}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{duration}')">{duration}</button>
+            <button class="var-chip" onclick="insertTemplateVar('{ext}')">{ext}</button>
+          </div>
 
-    async function dlCard(idx) {
-      const c = cardData[idx];
-      c.status = 'downloading';
-      c.error = null;
-      renderCard(idx);
+          <div class="preview-box">
+            <div class="preview-label">Preview</div>
+            <div id="set-preview" class="preview-value">—</div>
+          </div>
+        </div>
 
-      try {
-        const res = await fetch('/api/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: c.url,
-            format: currentFormat,
-            format_id: c.selectedFormatId,
-            title: c.title || '',
-          }),
-        });
-        const data = await res.json();
-        if (data.error) {
-          c.status = 'error';
-          c.error = data.error;
-          renderCard(idx);
-          return;
-        }
-        c.jobId = data.job_id;
-        pollCard(idx);
-      } catch (err) {
-        c.status = 'error';
-        c.error = err.message;
-        renderCard(idx);
-      }
-    }
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Sanitize filename</div>
+            <div class="setting-desc">Remove characters not allowed by macOS/Windows: \ / : * ? " &lt; &gt; |</div>
+          </div>
+          <label class="switch-lbl">
+            <input type="checkbox" id="set-sanitize" onchange="persistSettings({sanitize_filename: this.checked}); schedulePreview();">
+            <span class="sw2"></span>
+          </label>
+        </div>
 
-    function pollCard(idx) {
-      const c = cardData[idx];
-      const iv = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/status/${c.jobId}`);
-          const data = await res.json();
-          if (data.status === 'done') {
-            clearInterval(iv);
-            c.status = 'done';
-            c.filename = data.filename;
-            renderCard(idx);
-            saveCard(idx);
-          } else if (data.status === 'error') {
-            clearInterval(iv);
-            c.status = 'error';
-            c.error = data.error;
-            renderCard(idx);
-          }
-        } catch {
-          clearInterval(iv);
-          c.status = 'error';
-          c.error = 'Lost connection to server';
-          renderCard(idx);
-        }
-      }, 1000);
-    }
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Auto-organize by source</div>
+            <div class="setting-desc">Prefix every file with the site folder (YouTube/, Instagram/…)</div>
+          </div>
+          <label class="switch-lbl">
+            <input type="checkbox" id="set-auto-org" onchange="persistSettings({auto_organize_by_source: this.checked}); schedulePreview();">
+            <span class="sw2"></span>
+          </label>
+        </div>
 
-    function saveCard(idx) {
-      const c = cardData[idx];
-      if (!c.jobId) return;
-      const a = document.createElement('a');
-      a.href = `/api/file/${c.jobId}`;
-      a.download = c.filename || '';
-      a.click();
-    }
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Auto ID3 tags</div>
+            <div class="setting-desc">Fill title, artist, album from source metadata (MP3 only)</div>
+          </div>
+          <label class="switch-lbl">
+            <input type="checkbox" id="set-id3" onchange="persistSettings({id3_tags: this.checked})">
+            <span class="sw2"></span>
+          </label>
+        </div>
 
-    async function dlAll() {
-      const btn = document.querySelector('.dl-all-btn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Duplicate handling</div>
+            <div class="setting-desc">When a file already exists</div>
+          </div>
+          <div class="pill-group">
+            <button class="dup-pill" data-val="skip" onclick="pickDupHandling('skip')">Skip</button>
+            <button class="dup-pill" data-val="suffix" onclick="pickDupHandling('suffix')">Suffix (2)</button>
+            <button class="dup-pill" data-val="overwrite" onclick="pickDupHandling('overwrite')">Overwrite</button>
+          </div>
+        </div>
 
-      for (let i = 0; i < cardData.length; i++) {
-        if (cardData[i].status === 'ready') {
-          await dlCard(i);
-        }
-      }
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Default format on new downloads</div>
+            <div class="setting-desc">What Fetch selects by default</div>
+          </div>
+          <div class="pill-group">
+            <button class="def-fmt-pill" data-val="video" onclick="pickDefaultFormat('video')">MP4</button>
+            <button class="def-fmt-pill" data-val="audio" onclick="pickDefaultFormat('audio')">MP3</button>
+          </div>
+        </div>
 
-      if (btn) { btn.disabled = false; btn.textContent = 'Download All'; }
-    }
-  </script>
+      </section>
+    </div>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+<script src="/static/subs.js"></script>
+<script src="/static/settings_ui.js"></script>
 </body>
 </html>

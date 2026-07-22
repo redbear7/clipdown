@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/propertylist-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bangju.clipdown</string>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO_DIR__</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__REPO_DIR__/venv/bin/python3</string>
+        <string>__REPO_DIR__/app.py</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOST</key>
+        <string>0.0.0.0</string>
+        <key>PORT</key>
+        <string>8899</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>CLIPDOWN_PASSWORD</key>
+        <string>__PASSWORD__</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/clipdown.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/clipdown.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
