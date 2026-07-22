@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "유튜브 다운로더",
+  "productName": "ClipDown",
   "version": "0.1.1",
   "identifier": "com.bangju.clipdown",
   "build": {

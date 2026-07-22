@@ -107,16 +107,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri -- build --bundles nsis
 
-      - name: Rename installer to ASCII filename
+      - name: List build outputs
         shell: pwsh
         run: |
-          $ver = $env:REF_NAME -replace '^v',''
           $bundle = "tauri-app/src-tauri/target/release/bundle/nsis"
-          $ascii = "Clipdown_${ver}_x64-setup.exe"
-          $installer = Get-ChildItem "$bundle/*-setup.exe" | Select-Object -First 1
-          $sigFile = Get-ChildItem "$bundle/*-setup.exe.sig" | Select-Object -First 1
-          Rename-Item $installer.FullName -NewName $ascii
-          Rename-Item $sigFile.FullName -NewName "$ascii.sig"
           Get-ChildItem $bundle | ForEach-Object { Write-Host $_.Name ($_.Length/1MB).ToString("N1")"MB" }
 
       - name: Create latest.json updater manifest
