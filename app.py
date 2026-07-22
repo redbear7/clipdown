@@ -48,8 +48,33 @@ FFMPEG_BIN = _resolve_binary("ffmpeg")
 FFPROBE_BIN = _resolve_binary("ffprobe")
 
 app = Flask(__name__)
+
+
+# Expose real exception details on Windows/mac desktop app so a 500 in the
+# webview tells us WHAT failed instead of the generic Flask error page.
+@app.errorhandler(Exception)
+def _debug_error_handler(exc):
+    import traceback as _tb
+    tb = _tb.format_exc()
+    # Log to stderr so it also lands in server.err.log
+    sys.stderr.write(tb + "\n"); sys.stderr.flush()
+    body = (
+        "<html><body style='font-family:monospace;background:#fff;color:#222;padding:24px'>"
+        "<h2 style='color:#b34e21'>ClipDown 서버 오류</h2>"
+        f"<p><b>{type(exc).__name__}:</b> {exc}</p>"
+        f"<pre style='background:#f8f4ec;border:1px solid #e5ddc8;padding:16px;overflow:auto'>{tb}</pre>"
+        f"<p>리소스 루트: <code>{_resource_root()}</code></p>"
+        f"<p>다운로드 폴더: <code>{DOWNLOAD_DIR}</code></p>"
+        "</body></html>"
+    )
+    return body, 500
+
+
 DOWNLOAD_DIR = os.path.join(_resource_root(), "downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+try:
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+except Exception as _e:
+    sys.stderr.write(f"[startup] makedirs {DOWNLOAD_DIR} failed: {_e}\n")
 
 # === Authentication (optional) ===
 # Set CLIPDOWN_PASSWORD env var or write to config.json to enable
@@ -613,8 +638,14 @@ def download_file(job_id):
 # ═══════════════════════════════════════════════════════════════════
 
 # Initialize DB on startup
-subs_mod.init_db(_resource_root())
-history.init_db(_resource_root())
+try:
+    subs_mod.init_db(_resource_root())
+except Exception as _e:
+    sys.stderr.write(f"[startup] subs.init_db failed: {_e}\n")
+try:
+    history.init_db(_resource_root())
+except Exception as _e:
+    sys.stderr.write(f"[startup] history.init_db failed: {_e}\n")
 
 
 def _download_subscription_video(sub, video):
