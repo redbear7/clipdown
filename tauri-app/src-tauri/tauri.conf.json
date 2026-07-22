@@ -47,8 +47,10 @@
       "resources/portable/**/*": "portable/"
     },
     "macOS": {
-      "minimumSystemVersion": "10.15",
-      "exceptionDomain": "localhost"
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "localhost",
+      "entitlements": "entitlements.plist",
+      "hardenedRuntime": true
     },
     "windows": {
       "webviewInstallMode": {
