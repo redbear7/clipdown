@@ -16,15 +16,13 @@ const SERVER_PORT: u16 = 8899;
 const SERVER_URL: &str = "http://localhost:8899";
 
 /// Locate the app root that holds app.py + Python runtime.
-/// Windows release: <resource_dir>/portable
-/// macOS dev: $HOME/clipdown
+/// Release (Windows and macOS): <resource_dir>/portable (bundled).
+/// Dev fallback: $HOME/clipdown.
 fn find_app_root(app: &tauri::AppHandle) -> Option<PathBuf> {
-    if cfg!(target_os = "windows") {
-        if let Ok(rd) = app.path().resource_dir() {
-            let p = rd.join("portable");
-            if p.join("app.py").exists() {
-                return Some(p);
-            }
+    if let Ok(rd) = app.path().resource_dir() {
+        let p = rd.join("portable");
+        if p.join("app.py").exists() {
+            return Some(p);
         }
     }
     if let Ok(home) = std::env::var("HOME") {
@@ -37,9 +35,16 @@ fn find_app_root(app: &tauri::AppHandle) -> Option<PathBuf> {
 }
 
 /// Resolve the Python executable inside the app root.
+/// Windows: bundled embeddable pythonw.exe.
+/// macOS release: bundled python-build-standalone at runtime/python/bin/python3.
+/// macOS dev: local venv.
 fn python_bin(root: &PathBuf) -> PathBuf {
     if cfg!(target_os = "windows") {
-        root.join("runtime").join("python").join("pythonw.exe")
+        return root.join("runtime").join("python").join("pythonw.exe");
+    }
+    let bundled = root.join("runtime").join("python").join("bin").join("python3");
+    if bundled.exists() {
+        bundled
     } else {
         root.join("venv").join("bin").join("python3")
     }
@@ -50,7 +55,6 @@ fn build_child_path(root: &PathBuf) -> String {
     let bin = root.join("bin");
     let py = root.join("runtime").join("python");
     if cfg!(target_os = "windows") {
-        // Prepend our bundled bins; keep existing PATH so system utilities remain reachable.
         let existing = std::env::var("PATH").unwrap_or_default();
         format!("{};{};{}", bin.display(), py.display(), existing)
     } else {
@@ -59,6 +63,12 @@ fn build_child_path(root: &PathBuf) -> String {
             bin.display()
         )
     }
+}
+
+/// Extra site-packages dir bundled with the app (used on macOS release for Flask).
+fn python_extra_path(root: &PathBuf) -> Option<PathBuf> {
+    let p = root.join("site-packages");
+    if p.exists() { Some(p) } else { None }
 }
 
 /// Check whether the Flask server is already responsive.
@@ -104,6 +114,10 @@ fn spawn_python_server(app: &tauri::AppHandle) -> Option<Child> {
         .env("PATH", build_child_path(&root))
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+
+    if let Some(sp) = python_extra_path(&root) {
+        cmd.env("PYTHONPATH", sp);
+    }
 
     // Windows: hide the console window that would otherwise flash on spawn.
     #[cfg(target_os = "windows")]

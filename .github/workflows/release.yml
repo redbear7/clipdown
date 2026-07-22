@@ -1,4 +1,4 @@
-name: Release Windows App
+name: Release Desktop App
 
 on:
   push:
@@ -9,10 +9,25 @@ on:
 permissions:
   contents: write
 
+env:
+  PYSTD_TAG: "20240814"
+  PYSTD_VER: "3.11.9"
+
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    timeout-minutes: 60
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+            asset_label: windows
+          - platform: macos-14
+            args: "--target aarch64-apple-darwin"
+            asset_label: macos-arm64
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 75
 
     env:
       REF_NAME: ${{ github.ref_name }}
@@ -27,17 +42,21 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Setup Rust
+      - name: Setup Rust (stable)
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
+
+      - name: Add macOS Rust target
+        if: matrix.platform == 'macos-14'
+        run: rustup target add aarch64-apple-darwin
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: tauri-app/src-tauri
 
-      - name: Prepare portable resources
+      # ─────────────────────────── Windows resources ───────────────────────────
+      - name: Prepare Windows portable resources
+        if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           $portable = "tauri-app/src-tauri/resources/portable"
@@ -46,17 +65,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$portable/templates" | Out-Null
           New-Item -ItemType Directory -Force -Path "$portable/static" | Out-Null
 
-          Write-Host "Copying Python sources"
           Copy-Item app.py, history.py, updater.py, settings_store.py, subscriptions.py -Destination $portable
           Copy-Item templates/*.html -Destination "$portable/templates/"
           Copy-Item static/* -Destination "$portable/static/" -Recurse
 
-          Write-Host "Downloading Python 3.11 embeddable (Win11 target)"
           $pyUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
           Invoke-WebRequest $pyUrl -OutFile python-embed.zip
           Expand-Archive python-embed.zip -DestinationPath "$portable/runtime/python" -Force
 
-          Write-Host "Enabling site-packages + parent path in _pth"
           $pthFile = Get-ChildItem "$portable/runtime/python/python*._pth" | Select-Object -First 1
           @"
           python311.zip
@@ -67,18 +83,12 @@ jobs:
           Lib\site-packages
           "@ | Set-Content -Path $pthFile.FullName -Encoding ascii
 
-          Write-Host "Installing get-pip.py"
           Invoke-WebRequest https://bootstrap.pypa.io/get-pip.py -OutFile "$portable/runtime/python/get-pip.py"
           & "$portable/runtime/python/python.exe" "$portable/runtime/python/get-pip.py" --no-warn-script-location
-
-          Write-Host "Installing Flask + deps into embedded Python"
           & "$portable/runtime/python/python.exe" -m pip install --no-warn-script-location flask requests
 
-          Write-Host "Downloading yt-dlp.exe (latest)"
-          $ytdlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-          Invoke-WebRequest $ytdlpUrl -OutFile "$portable/bin/yt-dlp.exe"
+          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "$portable/bin/yt-dlp.exe"
 
-          Write-Host "Downloading ffmpeg (BtbN essentials)"
           $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip"
           Invoke-WebRequest $ffmpegUrl -OutFile ffmpeg.zip
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-extract -Force
@@ -87,70 +97,68 @@ jobs:
           Copy-Item "$ffmpegDir/ffmpeg.exe" "$portable/bin/"
           Copy-Item "$ffmpegDir/ffprobe.exe" "$portable/bin/"
 
-          Write-Host "Downloading Deno (for yt-dlp JS runtime)"
           $denoUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
           Invoke-WebRequest $denoUrl -OutFile deno.zip
           Expand-Archive deno.zip -DestinationPath "$portable/bin" -Force
 
-          Write-Host "Resources ready:"
           Get-ChildItem $portable -Recurse | Measure-Object -Property Length -Sum |
             ForEach-Object { "Total: {0:N1} MB" -f ($_.Sum / 1MB) }
+
+      # ─────────────────────────── macOS resources ─────────────────────────────
+      - name: Prepare macOS portable resources
+        if: matrix.platform == 'macos-14'
+        shell: bash
+        run: |
+          set -euo pipefail
+          portable="tauri-app/src-tauri/resources/portable"
+          mkdir -p "$portable/bin" "$portable/runtime" "$portable/templates" "$portable/static" "$portable/site-packages"
+
+          echo "▶ Copy Python sources"
+          cp app.py history.py updater.py settings_store.py subscriptions.py "$portable/"
+          cp templates/*.html "$portable/templates/"
+          cp -R static/* "$portable/static/"
+
+          echo "▶ Download python-build-standalone (aarch64 Apple Silicon)"
+          PYURL="https://github.com/indygreg/python-build-standalone/releases/download/${PYSTD_TAG}/cpython-${PYSTD_VER}+${PYSTD_TAG}-aarch64-apple-darwin-install_only.tar.gz"
+          curl -fsSL "$PYURL" -o /tmp/py.tgz
+          tar -xzf /tmp/py.tgz -C "$portable/runtime/"
+          chmod +x "$portable/runtime/python/bin/python3"
+          "$portable/runtime/python/bin/python3" --version
+
+          echo "▶ Install Flask + requests"
+          "$portable/runtime/python/bin/python3" -m pip install --target "$portable/site-packages" --no-warn-script-location flask requests
+
+          echo "▶ Download yt-dlp (macOS)"
+          curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" -o "$portable/bin/yt-dlp"
+          chmod +x "$portable/bin/yt-dlp"
+
+          echo "▶ Download ffmpeg + ffprobe (evermeet static)"
+          curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" -o /tmp/ffmpeg.zip
+          curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip" -o /tmp/ffprobe.zip
+          unzip -o -q /tmp/ffmpeg.zip -d "$portable/bin/"
+          unzip -o -q /tmp/ffprobe.zip -d "$portable/bin/"
+          chmod +x "$portable/bin/ffmpeg" "$portable/bin/ffprobe"
+
+          echo "▶ Remove macOS quarantine flags"
+          xattr -cr "$portable/bin" || true
+
+          du -sh "$portable"
 
       - name: Install Tauri UI deps
         working-directory: tauri-app
         run: npm ci
 
-      - name: Build Tauri app (Windows NSIS)
-        working-directory: tauri-app
+      - name: Build & release with tauri-action
+        uses: tauri-apps/tauri-action@v0
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri -- build --bundles nsis
-
-      - name: List build outputs
-        shell: pwsh
-        run: |
-          $bundle = "tauri-app/src-tauri/target/release/bundle/nsis"
-          Get-ChildItem $bundle | ForEach-Object { Write-Host $_.Name ($_.Length/1MB).ToString("N1")"MB" }
-
-      - name: Create latest.json updater manifest
-        shell: pwsh
-        run: |
-          $ver = $env:REF_NAME -replace '^v',''
-          $repo = $env:REPO
-          $bundle = "tauri-app/src-tauri/target/release/bundle/nsis"
-          $installer = Get-ChildItem "$bundle/*-setup.exe" | Select-Object -First 1
-          $sigFile = Get-ChildItem "$bundle/*-setup.exe.sig" | Select-Object -First 1
-          $sig = Get-Content $sigFile.FullName -Raw
-          $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          $installerName = $installer.Name
-          $url = "https://github.com/$repo/releases/download/v$ver/$installerName"
-          $manifest = @{
-            version   = $ver
-            notes     = "See release notes."
-            pub_date  = $now
-            platforms = @{
-              "windows-x86_64" = @{
-                signature = $sig.Trim()
-                url       = $url
-              }
-            }
-          }
-          $json = $manifest | ConvertTo-Json -Depth 5
-          $out = "$bundle/latest.json"
-          $json | Set-Content -Path $out -Encoding utf8
-          Write-Host "Wrote $out"
-          Get-Content $out
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "유튜브 다운로더 ${{ github.ref_name }}"
-          draft: false
+          projectPath: tauri-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "유튜브 다운로더 ${{ github.ref_name }}"
+          releaseDraft: false
           prerelease: false
-          fail_on_unmatched_files: true
-          files: |
-            tauri-app/src-tauri/target/release/bundle/nsis/*-setup.exe
-            tauri-app/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
-            tauri-app/src-tauri/target/release/bundle/nsis/latest.json
+          args: ${{ matrix.args }}
+          includeUpdaterJson: true
