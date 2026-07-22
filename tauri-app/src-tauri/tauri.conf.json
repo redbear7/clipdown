@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ClipDown",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "identifier": "com.bangju.clipdown",
   "build": {
     "frontendDist": "../ui",
@@ -42,10 +42,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "resources/portable/*": "portable/",
-      "resources/portable/**/*": "portable/"
-    },
+    "resources": [
+      "portable/**/*"
+    ],
     "macOS": {
       "minimumSystemVersion": "11.0",
       "exceptionDomain": "localhost",

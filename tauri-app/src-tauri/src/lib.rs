@@ -106,14 +106,28 @@ fn spawn_python_server(app: &tauri::AppHandle) -> Option<Child> {
 
     log::info!("Starting Python server: {:?}", python);
 
+    // Route Python stdout/stderr to a log file for diagnostics.
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let _ = std::fs::create_dir_all(&log_dir);
+    let stdout_path = log_dir.join("server.log");
+    let stderr_path = log_dir.join("server.err.log");
+    let stdout_file = std::fs::OpenOptions::new()
+        .create(true).append(true).open(&stdout_path).ok();
+    let stderr_file = std::fs::OpenOptions::new()
+        .create(true).append(true).open(&stderr_path).ok();
+    log::info!("Server stdout → {:?}", stdout_path);
+
     let mut cmd = Command::new(&python);
     cmd.arg(&app_py)
         .current_dir(&root)
         .env("HOST", "127.0.0.1")
         .env("PORT", SERVER_PORT.to_string())
-        .env("PATH", build_child_path(&root))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .env("PATH", build_child_path(&root));
+    if let Some(f) = stdout_file { cmd.stdout(f); } else { cmd.stdout(Stdio::null()); }
+    if let Some(f) = stderr_file { cmd.stderr(f); } else { cmd.stderr(Stdio::null()); }
 
     if let Some(sp) = python_extra_path(&root) {
         cmd.env("PYTHONPATH", sp);

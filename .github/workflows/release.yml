@@ -59,7 +59,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $portable = "tauri-app/src-tauri/resources/portable"
+          $portable = "tauri-app/src-tauri/portable"
           New-Item -ItemType Directory -Force -Path "$portable/bin" | Out-Null
           New-Item -ItemType Directory -Force -Path "$portable/runtime/python" | Out-Null
           New-Item -ItemType Directory -Force -Path "$portable/templates" | Out-Null
@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          portable="tauri-app/src-tauri/resources/portable"
+          portable="tauri-app/src-tauri/portable"
           mkdir -p "$portable/bin" "$portable/runtime" "$portable/templates" "$portable/static" "$portable/site-packages"
 
           echo "▶ Copy Python sources"
