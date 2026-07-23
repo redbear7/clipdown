@@ -90,6 +90,20 @@ try:
 except Exception as _e:
     sys.stderr.write(f"[startup] makedirs {DOWNLOAD_DIR} failed: {_e}\n")
 
+
+# Hide console windows for every yt-dlp / ffmpeg / ffprobe subprocess on Windows.
+# Without this, each spawn briefly flashes a black console window in front of
+# the desktop app — annoying for senior users especially.
+def _hide_window_kwargs():
+    if os.name != "nt":
+        return {}
+    kw = {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = 0  # SW_HIDE
+    kw["startupinfo"] = si
+    return kw
+
 # === Authentication (optional) ===
 # Set CLIPDOWN_PASSWORD env var or write to config.json to enable
 def _load_auth():
@@ -180,7 +194,8 @@ def get_duration(filepath):
         r = subprocess.run(
             [FFPROBE_BIN, "-v", "error", "-show_entries", "format=duration",
              "-of", "csv=p=0", filepath],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=10,
+            **_hide_window_kwargs()
         )
         return float(r.stdout.strip())
     except Exception:
@@ -282,7 +297,7 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
     try:
         cookie_copy_failed = False
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, bufsize=1)
+                                text=True, bufsize=1, **_hide_window_kwargs())
         stream_idx = 0
         for line in proc.stdout:
             line = line.strip()
@@ -333,7 +348,8 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
                          if not (a == "--cookies-from-browser"
                                  or (i > 0 and retry_cmd[i-1] == "--cookies-from-browser"))]
             proc = subprocess.Popen(retry_cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                    stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                    **_hide_window_kwargs())
             stream_idx = 0
             for line in proc.stdout:
                 line = line.strip()
@@ -402,7 +418,8 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
             probe = subprocess.run(
                 [FFPROBE_BIN, "-v", "error", "-select_streams", "v:0",
                  "-show_entries", "stream=codec_name", "-of", "csv=p=0", chosen],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
+                **_hide_window_kwargs()
             )
             vcodec = probe.stdout.strip()
             log(job, f"Codec: {vcodec}")
@@ -425,7 +442,8 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
             ]
 
             rproc = subprocess.Popen(recode_cmd, stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                     stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                     **_hide_window_kwargs())
             for rline in rproc.stdout:
                 pct = parse_ffmpeg_progress(rline, total_dur)
                 if pct is not None:
@@ -569,10 +587,12 @@ def get_info():
     cmd = base_cmd + ["--cookies-from-browser", cookie_browser, url]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                                **_hide_window_kwargs())
         # Retry without cookies when the browser DB was locked.
         if result.returncode != 0 and "Could not copy" in (result.stderr or "") and "cookie" in (result.stderr or "").lower():
-            result = subprocess.run(base_cmd + [url], capture_output=True, text=True, timeout=60)
+            result = subprocess.run(base_cmd + [url], capture_output=True, text=True, timeout=60,
+                                    **_hide_window_kwargs())
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip().split("\n")[-1]}), 400
 
@@ -941,6 +961,7 @@ def _trim_worker(job_id, source_path, start, end, out_ext, want_title):
 
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                **_hide_window_kwargs(),
                                 text=True, bufsize=1)
         for line in proc.stdout:
             m = re.search(r"out_time_ms=(\d+)", line)
