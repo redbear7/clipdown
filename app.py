@@ -21,8 +21,15 @@ import updater
 def _resource_root():
     """Return the directory that contains bundled resources/binaries."""
     if getattr(sys, "frozen", False):  # PyInstaller bundle
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+        p = os.path.dirname(sys.executable)
+    else:
+        p = os.path.dirname(os.path.abspath(__file__))
+    # Tauri on Windows hands us the extended-length path form (\\?\C:\...).
+    # Flask/Jinja join it with "templates" and the resulting path fails to
+    # resolve — strip the prefix so downstream file ops behave normally.
+    if p.startswith("\\\\?\\"):
+        p = p[4:]
+    return p
 
 
 def _resolve_binary(name):
@@ -47,7 +54,14 @@ YTDLP_BIN = _resolve_binary("yt-dlp")
 FFMPEG_BIN = _resolve_binary("ffmpeg")
 FFPROBE_BIN = _resolve_binary("ffprobe")
 
-app = Flask(__name__)
+# Pin templates/static to the resolved resource root so Tauri's
+# extended-length launch path can't confuse Flask's default discovery.
+_ROOT = _resource_root()
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_ROOT, "templates"),
+    static_folder=os.path.join(_ROOT, "static"),
+)
 
 
 # Expose real exception details on Windows/mac desktop app so a 500 in the
