@@ -188,7 +188,8 @@ def get_duration(filepath):
 
 
 def run_download(job_id, url, format_choice, format_id, force_h264=False,
-                 fast_mode=False, start_time=None, end_time=None, sections=None):
+                 fast_mode=False, start_time=None, end_time=None, sections=None,
+                 subs=False):
     job = jobs[job_id]
     job["logs"] = []
     job["progress"] = 0
@@ -232,6 +233,15 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
     if is_youtube:
         cmd += ["--remote-components", "ejs:github"]
         log(job, f"Fast mode: {fast_mode}")
+
+    # Subtitles — download ko + en tracks, embed into MP4 (video mode only).
+    # For audio-only, subtitles don't make sense; skip.
+    if subs and format_choice != "audio":
+        cmd += ["--write-subs", "--write-auto-subs",
+                "--sub-langs", "ko.*,en.*",
+                "--embed-subs",
+                "--convert-subs", "srt"]
+        log(job, "Subtitles: ko + en")
 
     if format_choice == "audio":
         cmd += ["-x", "--audio-format", "mp3"]
@@ -538,15 +548,20 @@ def get_info():
     # YouTube needs the JS challenge solver; other sites usually don't.
     # Skip cookies+solver for non-YouTube to speed up.
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    cmd = [YTDLP_BIN, "--no-playlist", "-j",
-           "--socket-timeout", "10",
-           "--no-check-certificates"]
+    base_cmd = [YTDLP_BIN, "--no-playlist", "-j",
+                "--socket-timeout", "10",
+                "--no-check-certificates"]
     if is_youtube:
-        cmd += ["--remote-components", "ejs:github"]
-    cmd += ["--cookies-from-browser", "chrome", url]
+        base_cmd += ["--remote-components", "ejs:github"]
+
+    cookie_browser = "edge" if os.name == "nt" else "chrome"
+    cmd = base_cmd + ["--cookies-from-browser", cookie_browser, url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # Retry without cookies when the browser DB was locked.
+        if result.returncode != 0 and "Could not copy" in (result.stderr or "") and "cookie" in (result.stderr or "").lower():
+            result = subprocess.run(base_cmd + [url], capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip().split("\n")[-1]}), 400
 
@@ -605,6 +620,8 @@ def start_download():
     start_time = (data.get("start_time") or "").strip() or None
     end_time = (data.get("end_time") or "").strip() or None
 
+    subs = bool(data.get("subs", False))
+
     # Multi-segment support: sections = [{"start": "0:10", "end": "0:30"}, ...]
     raw_sections = data.get("sections") or []
     sections = []
@@ -626,7 +643,8 @@ def start_download():
 
     thread = threading.Thread(target=run_download,
                               args=(job_id, url, format_choice, format_id,
-                                    force_h264, fast_mode, start_time, end_time, sections))
+                                    force_h264, fast_mode, start_time, end_time,
+                                    sections, subs))
     thread.daemon = True
     thread.start()
 

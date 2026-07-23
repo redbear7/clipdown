@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.1.7</title>
+  <title>유튜브 다운로더 v0.2.0</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -989,6 +989,92 @@
     }
 
 
+
+    /* URL preview card */
+    .url-preview {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      animation: fadeSlide 0.24s var(--ease);
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .preview-thumb {
+      width: 96px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: var(--r-sm);
+      background: var(--surface-muted);
+      flex-shrink: 0;
+    }
+    .preview-body { flex: 1; min-width: 0; }
+    .preview-title {
+      font-weight: 600;
+      font-size: 0.98rem;
+      color: var(--fg);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      letter-spacing: -0.005em;
+    }
+    .preview-meta {
+      margin-top: 4px;
+      font-size: 0.86rem;
+      color: var(--fg-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    .preview-dot { color: var(--fg-muted); }
+    .preview-spinner {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .url-preview.error {
+      background: var(--danger-tint);
+      border-color: var(--danger);
+    }
+    .url-preview.error .preview-title { color: var(--danger); }
+
+    /* Optional-feature toggle (subtitles etc.) */
+    .opt-toggle-row { margin-top: 14px; }
+    .opt-toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-size: 0.98rem;
+      color: var(--fg-secondary);
+      font-weight: 500;
+      padding: 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      transition: all 0.18s var(--ease);
+      background: var(--bg-elevated);
+    }
+    .opt-toggle:hover { border-color: var(--border-strong); }
+    .opt-toggle input {
+      width: 18px; height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .opt-toggle:has(input:checked) {
+      border-color: var(--primary);
+      background: var(--primary-tint);
+    }
+    .opt-toggle:has(input:checked) .opt-toggle-label { color: var(--primary); font-weight: 600; }
+
     /* Multi-section trim */
     .section-row {
       display: flex;
@@ -1085,7 +1171,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.1.7</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.2.0</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -1136,6 +1222,22 @@
       </button>
     </div>
 
+    <!-- Auto-preview: filled when the URL resolves -->
+    <div id="urlPreview" class="url-preview" style="display:none;">
+      <img class="preview-thumb" id="previewThumb" alt="">
+      <div class="preview-body">
+        <div class="preview-title" id="previewTitle"></div>
+        <div class="preview-meta">
+          <span id="previewChannel"></span>
+          <span class="preview-dot" id="previewDot" style="display:none;">·</span>
+          <span id="previewDuration"></span>
+        </div>
+      </div>
+      <div class="preview-spinner" id="previewSpinner" style="display:none;">
+        <span class="spin"></span>
+      </div>
+    </div>
+
     <!-- Step 2 -->
     <div class="section">
       <div class="step">
@@ -1157,6 +1259,14 @@
             <span class="fmt-sub">MP3 파일</span>
           </span>
         </button>
+      </div>
+
+      <!-- Subtitles -->
+      <div class="opt-toggle-row">
+        <label class="opt-toggle">
+          <input type="checkbox" id="subsEnable">
+          <span class="opt-toggle-label">한국어 · 영어 자막도 함께 저장</span>
+        </label>
       </div>
 
       <!-- Optional trim -->
@@ -1678,6 +1788,127 @@ function build(tag, attrs, children) {
 
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') startDownload(); });
 
+// ─── URL 자동 미리보기 (debounced) ────────────────────────────
+let _previewTimer = null;
+let _previewToken = 0;
+urlInput.addEventListener('input', () => {
+  clearTimeout(_previewTimer);
+  const v = urlInput.value.trim();
+  if (!v || !v.startsWith('http')) { hidePreview(); return; }
+  _previewTimer = setTimeout(() => fetchPreview(v), 500);
+});
+urlInput.addEventListener('paste', () => {
+  setTimeout(() => {
+    const v = urlInput.value.trim();
+    if (v && v.startsWith('http')) fetchPreview(v);
+  }, 20);
+});
+
+function hidePreview() {
+  document.getElementById('urlPreview').style.display = 'none';
+}
+
+function formatDuration(sec) {
+  if (!sec || sec < 0) return '';
+  const s = Math.round(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const rs = s % 60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(rs).padStart(2,'0')}`
+           : `${m}:${String(rs).padStart(2,'0')}`;
+}
+
+async function fetchPreview(url) {
+  const box = document.getElementById('urlPreview');
+  const spinner = document.getElementById('previewSpinner');
+  const titleEl = document.getElementById('previewTitle');
+  const thumbEl = document.getElementById('previewThumb');
+  const channelEl = document.getElementById('previewChannel');
+  const durEl = document.getElementById('previewDuration');
+  const dotEl = document.getElementById('previewDot');
+
+  const myToken = ++_previewToken;
+  box.style.display = 'flex';
+  box.classList.remove('error');
+  titleEl.textContent = '영상 정보 확인 중...';
+  channelEl.textContent = ''; durEl.textContent = '';
+  dotEl.style.display = 'none';
+  thumbEl.removeAttribute('src');
+  spinner.style.display = 'flex';
+
+  try {
+    const res = await fetch('/api/info', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    if (myToken !== _previewToken) return;
+    const info = await res.json();
+    spinner.style.display = 'none';
+
+    if (info.error) {
+      box.classList.add('error');
+      titleEl.textContent = '영상 정보를 가져올 수 없습니다';
+      channelEl.textContent = translateError(info.error);
+      return;
+    }
+    titleEl.textContent = info.title || '(제목 없음)';
+    if (info.thumbnail) thumbEl.src = info.thumbnail;
+    channelEl.textContent = info.uploader || '';
+    const dur = formatDuration(info.duration);
+    if (dur) {
+      durEl.textContent = dur;
+      if (info.uploader) dotEl.style.display = 'inline';
+    }
+  } catch (e) {
+    if (myToken !== _previewToken) return;
+    spinner.style.display = 'none';
+    box.classList.add('error');
+    titleEl.textContent = '연결 실패';
+    channelEl.textContent = '';
+  }
+}
+
+// ─── 클립보드 자동 감지 (창 활성화 시) ────────────────────────
+let _lastClipboardSuggested = '';
+async function detectClipboardUrl() {
+  if (urlInput.value.trim()) return;              // 이미 입력됨 — 방해 금지
+  if (!navigator.clipboard || !navigator.clipboard.readText) return;
+  try {
+    const text = (await navigator.clipboard.readText()).trim();
+    if (!text || !/^https?:\/\//i.test(text)) return;
+    if (!/youtube\.com|youtu\.be|instagram\.com|tiktok\.com|twitter\.com|x\.com|vimeo\.com|facebook\.com/i.test(text)) return;
+    if (text === _lastClipboardSuggested) return;
+    _lastClipboardSuggested = text;
+    urlInput.value = text;
+    fetchPreview(text);
+    showToast('클립보드의 주소를 붙여넣었어요', 'ok');
+  } catch (e) { /* silently ignore permission errors */ }
+}
+window.addEventListener('focus', detectClipboardUrl);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) detectClipboardUrl();
+});
+// 페이지 로드 후 한 번 시도 (권한 있으면 통과)
+setTimeout(detectClipboardUrl, 800);
+
+// ─── 완료 알림 (네이티브) ──────────────────────────────────
+function ensureNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') Notification.requestPermission();
+}
+document.addEventListener('DOMContentLoaded', ensureNotifPermission);
+
+function notifyDone(title) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    new Notification('저장 완료 · 유튜브 다운로더', {
+      body: title || '영상이 저장되었습니다',
+      icon: '/static/favicon.svg',
+      silent: false,
+    });
+  } catch (e) {}
+}
+
 async function startDownload() {
   const url = urlInput.value.trim();
   if (!url || !url.startsWith('http')) {
@@ -1743,6 +1974,7 @@ async function startDownload() {
         format_id: info.formats?.[0]?.id || null,
         title: info.title || '',
         sections,
+        subs: !!document.getElementById('subsEnable')?.checked,
       }),
     });
     const dlData = await dlRes.json();
@@ -1770,9 +2002,12 @@ function pollJob(item, onDone) {
         clearInterval(iv);
         item.status = 'done'; item.filename = data.filename; item.downloadToken = data.download_token;
         renderItem(item); showToast('✓ 저장이 완료되었습니다!', 'ok');
+        notifyDone(item.title || item.filename);
         saveFile(item); onDone && onDone();
         // Refresh persistent history so the new entry shows immediately
         loadHistory();
+        // Reset the URL area for the next download
+        hidePreview();
       } else if (data.status === 'error') {
         clearInterval(iv);
         item.status = 'error'; item.error = translateError(data.error || '다운로드 실패');
