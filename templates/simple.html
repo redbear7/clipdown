@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.2.0</title>
+  <title>유튜브 다운로더 v0.2.1</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1119,6 +1119,135 @@
       color: var(--danger);
       background: var(--danger-tint);
     }
+
+    /* Thumbnail scrubber */
+    .section-row.has-scrubber {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      padding: 14px 14px 12px;
+    }
+    .scrubber-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .scrubber-head .seg-num {
+      position: static;
+      background: var(--primary);
+      color: var(--fg-inverse);
+    }
+    .scrubber {
+      position: relative;
+      height: 72px;
+      border-radius: var(--r-sm);
+      background: var(--surface-muted) center/cover no-repeat;
+      overflow: hidden;
+      user-select: none;
+      touch-action: none;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .scrubber::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(25,23,19,0.35), rgba(25,23,19,0.55));
+    }
+    .scrub-range {
+      position: absolute;
+      top: 0; bottom: 0;
+      background: rgba(167, 90, 45, 0.28);
+      border-left: 2px solid var(--primary);
+      border-right: 2px solid var(--primary);
+      cursor: grab;
+    }
+    .scrub-range:active { cursor: grabbing; }
+    .scrub-handle {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 20px;
+      transform: translateX(-50%);
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+    .scrub-handle::after {
+      content: "";
+      width: 4px;
+      height: 60%;
+      background: #fff;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .scrub-handle.start::after { background: #ffd28a; }
+    .scrub-handle.end::after   { background: #ffb17a; }
+    .scrub-label {
+      position: absolute;
+      top: 6px;
+      background: rgba(25,23,19,0.85);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: 'IBM Plex Mono', monospace;
+      padding: 3px 8px;
+      border-radius: var(--r-xs);
+      pointer-events: none;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+      z-index: 3;
+    }
+    .scrub-label.start { transform: translateX(-50%); }
+    .scrub-label.end   { transform: translateX(-50%); }
+
+    .scrubber-foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--fg-tertiary);
+      flex-wrap: wrap;
+    }
+    .scrubber-foot .duration-badge {
+      background: var(--primary-tint);
+      color: var(--primary);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--r-full);
+      font-size: 0.78rem;
+    }
+    .scrubber-foot .time-field-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .scrubber-foot .time-field-mini label {
+      font-size: 0.82rem;
+      color: var(--fg-tertiary);
+      font-weight: 500;
+    }
+    .scrubber-foot .time-field-mini input {
+      width: 78px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-xs);
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 500;
+      font-size: 0.92rem;
+      background: var(--surface);
+      text-align: center;
+      color: var(--fg);
+      transition: border-color 0.15s;
+    }
+    .scrubber-foot .time-field-mini input:focus {
+      border-color: var(--border-focus);
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
     .add-section-btn {
       width: 100%;
       background: transparent;
@@ -1171,7 +1300,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.2.0</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.2.1</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -1679,6 +1808,202 @@ function restoreFormatPreference() {
 }
 document.addEventListener('DOMContentLoaded', restoreFormatPreference);
 
+
+// ─── Video info shared with scrubbers ────────────────────────────
+let _videoInfo = {duration: 0, thumbnail: null};
+
+function parseTimeStr(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (!/^\d+(?::\d+){0,2}(?:\.\d+)?$/.test(s)) return null;
+  const parts = s.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  let sec = 0;
+  if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  else if (parts.length === 2) sec = parts[0] * 60 + parts[1];
+  else sec = parts[0];
+  return sec;
+}
+function secToTimeStr(sec, opts) {
+  const s = Math.max(0, Math.round(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const rs = s % 60;
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(rs).padStart(2,'0')}`
+           : (opts && opts.padMin ? `${String(m).padStart(2,'0')}:${String(rs).padStart(2,'0')}`
+                                  : `${m}:${String(rs).padStart(2,'0')}`);
+}
+
+// Refresh all existing scrubbers when the video info changes
+function refreshAllScrubbers() {
+  document.querySelectorAll('.section-row').forEach(row => {
+    if (_videoInfo.duration > 0) {
+      if (!row.classList.contains('has-scrubber')) upgradeRowToScrubber(row);
+      const scr = row.querySelector('.scrubber');
+      if (scr && _videoInfo.thumbnail) {
+        scr.style.backgroundImage = `url("${_videoInfo.thumbnail}")`;
+      }
+      syncScrubberFromInputs(row);
+    } else if (row.classList.contains('has-scrubber')) {
+      // Duration lost — leave DOM as-is; scrubber will still work if user types
+    }
+  });
+}
+
+// Attach scrubber DOM to an existing (simple) section-row
+function upgradeRowToScrubber(row) {
+  const startInput = row.querySelector('.seg-start');
+  const endInput = row.querySelector('.seg-end');
+  const segNum = row.querySelector('.seg-num');
+  const delBtn = row.querySelector('.del-seg');
+  if (!startInput || !endInput || !segNum || !delBtn) return;
+
+  const startVal = startInput.value;
+  const endVal = endInput.value;
+
+  // Clear existing content and rebuild
+  row.classList.add('has-scrubber');
+  while (row.firstChild) row.removeChild(row.firstChild);
+
+  const head = build('div', {class: 'scrubber-head'}, [segNum, delBtn]);
+  const scrub = build('div', {class: 'scrubber'});
+  const range = build('div', {class: 'scrub-range'});
+  const hStart = build('div', {class: 'scrub-handle start'});
+  const hEnd = build('div', {class: 'scrub-handle end'});
+  const lStart = build('div', {class: 'scrub-label start'}, '0:00');
+  const lEnd = build('div', {class: 'scrub-label end'}, '0:00');
+  scrub.appendChild(range);
+  scrub.appendChild(hStart);
+  scrub.appendChild(hEnd);
+  scrub.appendChild(lStart);
+  scrub.appendChild(lEnd);
+
+  const newStart = build('input', {type: 'text', class: 'seg-start', placeholder: '0:00', inputmode: 'numeric', value: startVal});
+  const newEnd = build('input', {type: 'text', class: 'seg-end', placeholder: '1:30', inputmode: 'numeric', value: endVal});
+  const durBadge = build('span', {class: 'duration-badge'}, '0초');
+
+  const foot = build('div', {class: 'scrubber-foot'}, [
+    build('div', {class: 'time-field-mini'}, [build('label', null, '시작'), newStart]),
+    build('span', null, '→'),
+    build('div', {class: 'time-field-mini'}, [build('label', null, '끝'), newEnd]),
+    durBadge,
+  ]);
+
+  row.appendChild(head);
+  row.appendChild(scrub);
+  row.appendChild(foot);
+
+  if (_videoInfo.thumbnail) scrub.style.backgroundImage = `url("${_videoInfo.thumbnail}")`;
+
+  attachScrubberEvents(row);
+  syncScrubberFromInputs(row);
+}
+
+function syncScrubberFromInputs(row) {
+  const dur = _videoInfo.duration || 0;
+  if (dur <= 0) return;
+  const scr = row.querySelector('.scrubber'); if (!scr) return;
+  const range = scr.querySelector('.scrub-range');
+  const hS = scr.querySelector('.scrub-handle.start');
+  const hE = scr.querySelector('.scrub-handle.end');
+  const lS = scr.querySelector('.scrub-label.start');
+  const lE = scr.querySelector('.scrub-label.end');
+  const startInput = row.querySelector('.seg-start');
+  const endInput = row.querySelector('.seg-end');
+  const dBadge = row.querySelector('.duration-badge');
+
+  const startSec = parseTimeStr(startInput.value) ?? 0;
+  const endSec = parseTimeStr(endInput.value) ?? dur;
+  const s = Math.max(0, Math.min(dur, startSec));
+  const e = Math.max(s, Math.min(dur, endSec));
+  const sPct = (s / dur) * 100;
+  const ePct = (e / dur) * 100;
+
+  range.style.left = sPct + '%';
+  range.style.width = Math.max(0, ePct - sPct) + '%';
+  hS.style.left = sPct + '%';
+  hE.style.left = ePct + '%';
+  lS.style.left = sPct + '%';
+  lE.style.left = ePct + '%';
+  // Clamp label horizontal transform so it doesn't spill outside the scrubber
+  lS.style.transform = sPct < 10 ? 'translateX(0)'
+                       : sPct > 90 ? 'translateX(-100%)'
+                       : 'translateX(-50%)';
+  lE.style.transform = ePct < 10 ? 'translateX(0)'
+                       : ePct > 90 ? 'translateX(-100%)'
+                       : 'translateX(-50%)';
+  lS.textContent = secToTimeStr(s);
+  lE.textContent = secToTimeStr(e);
+  if (dBadge) dBadge.textContent = `총 ${secToTimeStr(Math.max(0, e - s))}`;
+}
+
+function attachScrubberEvents(row) {
+  const scr = row.querySelector('.scrubber'); if (!scr) return;
+  const hS = scr.querySelector('.scrub-handle.start');
+  const hE = scr.querySelector('.scrub-handle.end');
+  const range = scr.querySelector('.scrub-range');
+  const startInput = row.querySelector('.seg-start');
+  const endInput = row.querySelector('.seg-end');
+
+  function getFraction(clientX) {
+    const rect = scr.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }
+  function updateFromDrag(which, frac) {
+    const dur = _videoInfo.duration || 0;
+    if (dur <= 0) return;
+    const other = which === 'start' ? parseTimeStr(endInput.value) ?? dur
+                                    : parseTimeStr(startInput.value) ?? 0;
+    let secs = frac * dur;
+    if (which === 'start') secs = Math.min(secs, other - 0.5);
+    else secs = Math.max(secs, other + 0.5);
+    secs = Math.max(0, Math.min(dur, secs));
+    if (which === 'start') startInput.value = secToTimeStr(secs);
+    else endInput.value = secToTimeStr(secs);
+    syncScrubberFromInputs(row);
+  }
+  function startDrag(which, ev) {
+    ev.preventDefault();
+    const move = e => {
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      updateFromDrag(which, getFraction(cx));
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchmove', move, {passive: false});
+    window.addEventListener('touchend', up);
+  }
+  hS.addEventListener('mousedown', e => startDrag('start', e));
+  hS.addEventListener('touchstart', e => startDrag('start', e));
+  hE.addEventListener('mousedown', e => startDrag('end', e));
+  hE.addEventListener('touchstart', e => startDrag('end', e));
+
+  // Click on empty area of scrubber → move nearest handle
+  scr.addEventListener('mousedown', e => {
+    if (e.target === scr || e.target === scr.querySelector('::before')) {
+      const dur = _videoInfo.duration || 0;
+      if (dur <= 0) return;
+      const frac = getFraction(e.clientX);
+      const clickSec = frac * dur;
+      const sSec = parseTimeStr(startInput.value) ?? 0;
+      const eSec = parseTimeStr(endInput.value) ?? dur;
+      const which = Math.abs(clickSec - sSec) < Math.abs(clickSec - eSec) ? 'start' : 'end';
+      updateFromDrag(which, frac);
+    }
+  });
+
+  // Text input change → refresh scrubber
+  startInput.addEventListener('input', () => syncScrubberFromInputs(row));
+  endInput.addEventListener('input', () => syncScrubberFromInputs(row));
+}
+
+
 function toggleTrim() {
   const on = document.getElementById('trimEnable').checked;
   document.getElementById('trimFields').style.display = on ? 'block' : 'none';
@@ -1722,6 +2047,7 @@ function addSection(start, end) {
     ]),
   ]);
   list.appendChild(row);
+  if (_videoInfo.duration > 0) upgradeRowToScrubber(row);
   const inp = row.querySelector('.seg-start');
   if (inp && !start) setTimeout(() => inp.focus(), 50);
 }
@@ -1859,6 +2185,12 @@ async function fetchPreview(url) {
       durEl.textContent = dur;
       if (info.uploader) dotEl.style.display = 'inline';
     }
+    // Cache for scrubbers
+    _videoInfo = {
+      duration: Number(info.duration) || 0,
+      thumbnail: info.thumbnail || null,
+    };
+    refreshAllScrubbers();
   } catch (e) {
     if (myToken !== _previewToken) return;
     spinner.style.display = 'none';
