@@ -229,9 +229,20 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
         cookie_browser = "edge" if os.name == "nt" else "chrome"
         cmd += ["--cookies-from-browser", cookie_browser]
 
-    # JS challenge solver only for YouTube (required even in fast mode)
+    # JS challenge solver only for YouTube.
+    # Official yt-dlp.exe on Windows ships with ejs bundled — no remote fetch
+    # needed (and the fetch was failing on Windows behind restrictive networks,
+    # producing "Unsupported url scheme: ejs" at extract time).
+    # On macOS / Linux we still enable the github source so Homebrew installs work.
     if is_youtube:
-        cmd += ["--remote-components", "ejs:github"]
+        if os.name != "nt":
+            cmd += ["--remote-components", "ejs:github"]
+        # Point yt-dlp at the bundled Deno explicitly on Windows so PATH quirks
+        # can't hide it.
+        if os.name == "nt":
+            bundled_deno = os.path.join(_resource_root(), "bin", "deno.exe")
+            if os.path.isfile(bundled_deno):
+                cmd += ["--js-runtimes", f"deno:{bundled_deno}"]
         log(job, f"Fast mode: {fast_mode}")
 
     # Subtitles — download ko + en tracks, embed into MP4 (video mode only).

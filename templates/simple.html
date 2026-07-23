@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.2.1</title>
+  <title>유튜브 다운로더 v0.2.2</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1300,7 +1300,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.2.1</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.2.2</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -2114,20 +2114,75 @@ function build(tag, attrs, children) {
 
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') startDownload(); });
 
-// ─── URL 자동 미리보기 (debounced) ────────────────────────────
+// ─── URL 자동 미리보기 (즉시 썸네일 + 백엔드 upgrade) ─────────
 let _previewTimer = null;
 let _previewToken = 0;
-urlInput.addEventListener('input', () => {
+let _lastPreviewUrl = '';
+
+function extractYouTubeVideoId(url) {
+  // Handles youtube.com/watch?v=, youtu.be/, shorts/, embed/, /v/
+  const patterns = [
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|v\/))([\w-]{11})/,
+    /(?:youtu\.be\/)([\w-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// Show instant thumbnail + placeholder from a YouTube video ID, then let the
+// backend fill in title / duration / uploader when it's ready.
+function showInstantYouTubePreview(videoId, url) {
+  const box = document.getElementById('urlPreview');
+  const spinner = document.getElementById('previewSpinner');
+  const titleEl = document.getElementById('previewTitle');
+  const thumbEl = document.getElementById('previewThumb');
+  const channelEl = document.getElementById('previewChannel');
+  const durEl = document.getElementById('previewDuration');
+  const dotEl = document.getElementById('previewDot');
+
+  box.style.display = 'flex';
+  box.classList.remove('error');
+  titleEl.textContent = '영상 정보 확인 중...';
+  channelEl.textContent = '';
+  durEl.textContent = '';
+  dotEl.style.display = 'none';
+  // Try higher-res first with fallback to hq
+  thumbEl.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  thumbEl.onerror = () => { thumbEl.onerror = null; thumbEl.src = `https://i.ytimg.com/vi/${videoId}/default.jpg`; };
+  spinner.style.display = 'flex';
+
+  // Seed the scrubber thumbnail immediately so segment cards look complete
+  // even before duration lands.
+  if (!_videoInfo.thumbnail) {
+    _videoInfo = {..._videoInfo, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`};
+    refreshAllScrubbers();
+  }
+}
+
+function schedulePreview(url, immediate) {
   clearTimeout(_previewTimer);
-  const v = urlInput.value.trim();
-  if (!v || !v.startsWith('http')) { hidePreview(); return; }
-  _previewTimer = setTimeout(() => fetchPreview(v), 500);
-});
+  if (!url || !url.startsWith('http')) { hidePreview(); _lastPreviewUrl = ''; return; }
+  if (url === _lastPreviewUrl) return;               // dedupe repeat calls
+
+  // 1) instant client-side thumbnail (YouTube only) — sub-100ms
+  const vid = extractYouTubeVideoId(url);
+  if (vid) showInstantYouTubePreview(vid, url);
+
+  // 2) still fetch backend for title/duration/uploader
+  const delay = immediate ? 0 : 300;
+  _previewTimer = setTimeout(() => {
+    _lastPreviewUrl = url;
+    fetchPreview(url);
+  }, delay);
+}
+
+urlInput.addEventListener('input', () => schedulePreview(urlInput.value.trim(), false));
 urlInput.addEventListener('paste', () => {
-  setTimeout(() => {
-    const v = urlInput.value.trim();
-    if (v && v.startsWith('http')) fetchPreview(v);
-  }, 20);
+  // Paste hasn't updated the input value yet — defer to next tick
+  setTimeout(() => schedulePreview(urlInput.value.trim(), true), 0);
 });
 
 function hidePreview() {
