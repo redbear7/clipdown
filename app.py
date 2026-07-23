@@ -219,10 +219,14 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
         log(job, f"Trimming to {len(sections)} segment(s): "
                  + ", ".join(f"{seg.get('start','0')}-{seg.get('end','inf')}" for seg in sections))
 
-    # Fast mode: skip cookies (works for public content)
-    # Normal mode: use cookies for private/age-restricted content
+    # Fast mode: skip cookies (works for public content).
+    # Normal mode: use cookies for private/age-restricted content.
+    # Prefer Edge on Windows — Chrome's cookie DB is almost always locked while
+    # Chrome is running, whereas Edge is usually idle for users on other browsers.
+    cookie_browser = None
     if not fast_mode:
-        cmd += ["--cookies-from-browser", "chrome"]
+        cookie_browser = "edge" if os.name == "nt" else "chrome"
+        cmd += ["--cookies-from-browser", cookie_browser]
 
     # JS challenge solver only for YouTube (required even in fast mode)
     if is_youtube:
@@ -255,6 +259,7 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
     job["phase"] = "downloading"
 
     try:
+        cookie_copy_failed = False
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, bufsize=1)
         stream_idx = 0
@@ -262,6 +267,8 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
             line = line.strip()
             if not line:
                 continue
+            if cookie_browser and "Could not copy" in line and "cookie" in line.lower():
+                cookie_copy_failed = True
 
             # Track progress
             prog = parse_ytdlp_progress(line)
@@ -293,6 +300,32 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
                 log(job, f"Error: {line}")
 
         proc.wait(timeout=600)
+
+        # Cookie DB was locked (browser was running) — retry once without cookies.
+        # Works for public content; private/age-restricted videos would still need
+        # the user to close the browser or use a cookies.txt file.
+        if proc.returncode != 0 and cookie_copy_failed and cookie_browser:
+            log(job, f"'{cookie_browser}' 브라우저 쿠키 복사 실패 — 쿠키 없이 재시도합니다")
+            job["progress"] = 0
+            retry_cmd = [a for a in cmd if a not in (cookie_browser,)]
+            retry_cmd = [a for i, a in enumerate(retry_cmd)
+                         if not (a == "--cookies-from-browser"
+                                 or (i > 0 and retry_cmd[i-1] == "--cookies-from-browser"))]
+            proc = subprocess.Popen(retry_cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, bufsize=1)
+            stream_idx = 0
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                prog = parse_ytdlp_progress(line)
+                if prog:
+                    job["progress"] = round(prog["percent"], 1)
+                    if prog.get("speed"): job["speed"] = prog["speed"]
+                elif line.startswith("ERROR"):
+                    log(job, f"Error: {line}")
+            proc.wait(timeout=600)
+
         if proc.returncode != 0:
             job["status"] = "error"
             job["error"] = job["logs"][-1] if job["logs"] else "Download failed"
