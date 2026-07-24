@@ -244,20 +244,8 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
         cookie_browser = "edge" if os.name == "nt" else "chrome"
         cmd += ["--cookies-from-browser", cookie_browser]
 
-    # JS challenge solver only for YouTube.
-    # Official yt-dlp.exe on Windows ships with ejs bundled — no remote fetch
-    # needed (and the fetch was failing on Windows behind restrictive networks,
-    # producing "Unsupported url scheme: ejs" at extract time).
-    # On macOS / Linux we still enable the github source so Homebrew installs work.
     if is_youtube:
-        if os.name != "nt":
-            cmd += ["--remote-components", "ejs:github"]
-        # Point yt-dlp at the bundled Deno explicitly on Windows so PATH quirks
-        # can't hide it.
-        if os.name == "nt":
-            bundled_deno = os.path.join(_resource_root(), "bin", "deno.exe")
-            if os.path.isfile(bundled_deno):
-                cmd += ["--js-runtimes", f"deno:{bundled_deno}"]
+        cmd += ["--remote-components", "ejs:github"]
         log(job, f"Fast mode: {fast_mode}")
 
     # Subtitles — download ko + en tracks, embed into MP4 (video mode only).
@@ -296,6 +284,7 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
 
     try:
         cookie_copy_failed = False
+        js_scheme_failed = False
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, bufsize=1, **_hide_window_kwargs())
         stream_idx = 0
@@ -305,6 +294,12 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
                 continue
             if cookie_browser and "Could not copy" in line and "cookie" in line.lower():
                 cookie_copy_failed = True
+            # yt-dlp's ejs / deno JS-runner plugins didn't register their URL
+            # scheme on this box (common on Windows when the plugin fetch was
+            # blocked or the standalone exe couldn't spawn Deno). Detect it so
+            # we can retry with a JS-less YouTube client.
+            if is_youtube and "Unsupported url scheme" in line:
+                js_scheme_failed = True
 
             # Track progress
             prog = parse_ytdlp_progress(line)
@@ -337,21 +332,18 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
 
         proc.wait(timeout=600)
 
-        # Cookie DB was locked (browser was running) — retry once without cookies.
-        # Works for public content; private/age-restricted videos would still need
-        # the user to close the browser or use a cookies.txt file.
-        if proc.returncode != 0 and cookie_copy_failed and cookie_browser:
-            log(job, f"'{cookie_browser}' 브라우저 쿠키 복사 실패 — 쿠키 없이 재시도합니다")
+        def _strip_cookies(c):
+            return [a for i, a in enumerate(c)
+                    if not (a == "--cookies-from-browser"
+                            or (i > 0 and c[i-1] == "--cookies-from-browser"))]
+
+        def _retry(retry_cmd, reason_log):
+            log(job, reason_log)
             job["progress"] = 0
-            retry_cmd = [a for a in cmd if a not in (cookie_browser,)]
-            retry_cmd = [a for i, a in enumerate(retry_cmd)
-                         if not (a == "--cookies-from-browser"
-                                 or (i > 0 and retry_cmd[i-1] == "--cookies-from-browser"))]
-            proc = subprocess.Popen(retry_cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True, bufsize=1,
-                                    **_hide_window_kwargs())
-            stream_idx = 0
-            for line in proc.stdout:
+            p2 = subprocess.Popen(retry_cmd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                  **_hide_window_kwargs())
+            for line in p2.stdout:
                 line = line.strip()
                 if not line:
                     continue
@@ -361,7 +353,23 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
                     if prog.get("speed"): job["speed"] = prog["speed"]
                 elif line.startswith("ERROR"):
                     log(job, f"Error: {line}")
-            proc.wait(timeout=600)
+            p2.wait(timeout=600)
+            return p2
+
+        # Retry ①: cookie DB locked (browser open) → drop cookies, keep client
+        if proc.returncode != 0 and cookie_copy_failed and cookie_browser:
+            proc = _retry(_strip_cookies(cmd),
+                          f"'{cookie_browser}' 브라우저 쿠키 복사 실패 — 쿠키 없이 재시도합니다")
+
+        # Retry ②: yt-dlp JS-runner plugin missing → android_vr client (no JS,
+        # no cookies). Only works for public YouTube content but that's most
+        # of what senior users download. Force here even if ① already ran.
+        if proc.returncode != 0 and js_scheme_failed:
+            js_free_cmd = _strip_cookies(cmd) + [
+                "--extractor-args", "youtube:player_client=android_vr"
+            ]
+            proc = _retry(js_free_cmd,
+                          "JS 실행기 플러그인을 불러올 수 없어 다른 방식으로 재시도합니다")
 
         if proc.returncode != 0:
             job["status"] = "error"
