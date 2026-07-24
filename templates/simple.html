@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.2.4</title>
+  <title>유튜브 다운로더 v0.3.0</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1274,6 +1274,95 @@
       border-style: solid;
     }
 
+
+    /* ═══════════════════════════════════════════════════════════
+       Advanced drawer (subscriptions + settings hidden by default)
+       ═══════════════════════════════════════════════════════════ */
+    .advanced-drawer {
+      margin-top: 44px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+    }
+    .advanced-summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      transition: background 0.15s var(--ease);
+    }
+    .advanced-summary::-webkit-details-marker { display: none; }
+    .advanced-summary:hover { background: var(--surface-hover); }
+    .adv-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--fg-tertiary);
+      flex-shrink: 0;
+    }
+    .advanced-summary > span:nth-of-type(1) {
+      font-weight: 600;
+      font-size: 1.02rem;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+    }
+    .adv-hint {
+      color: var(--fg-tertiary);
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-left: auto;
+    }
+    .adv-chev {
+      width: 18px;
+      height: 18px;
+      color: var(--fg-tertiary);
+      margin-left: 12px;
+      transition: transform 0.22s var(--ease);
+    }
+    .advanced-drawer[open] .adv-chev { transform: rotate(180deg); }
+
+    .advanced-content {
+      border-top: 1px solid var(--divider);
+      padding: 22px 24px 24px;
+      background: var(--bg-elevated);
+    }
+    .advanced-section {
+      padding-bottom: 22px;
+      margin-bottom: 22px;
+      border-bottom: 1px solid var(--divider);
+    }
+    .advanced-section:last-child {
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-bottom: none;
+    }
+    .adv-h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--fg);
+      letter-spacing: -0.015em;
+      margin-bottom: 12px;
+    }
+    .adv-panel-body {
+      color: var(--fg-secondary);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+    .adv-placeholder {
+      color: var(--fg-tertiary);
+      font-style: italic;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 500px) {
+      .advanced-summary { padding: 16px 18px; }
+      .adv-hint { display: none; }
+      .advanced-content { padding: 18px 18px 20px; }
+    }
+
     /* Reduce motion */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -1300,7 +1389,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.2.4</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.3.0</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -1456,6 +1545,30 @@
     </div>
     <div id="historyList"></div>
   </div>
+
+  <!-- Advanced drawer — closed by default, holds subscriptions + settings -->
+  <details class="advanced-drawer" id="advancedDrawer">
+    <summary class="advanced-summary">
+      <svg class="adv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>고급 설정</span>
+      <span class="adv-hint">채널 구독 · 다운로드 설정</span>
+      <svg class="adv-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </summary>
+    <div class="advanced-content">
+      <div class="advanced-section">
+        <h3 class="adv-h3">채널 구독</h3>
+        <div id="subsPanel" class="adv-panel-body">
+          <p class="adv-placeholder">채널을 등록하면 새 영상이 올라올 때 알림을 받을 수 있습니다. (준비 중)</p>
+        </div>
+      </div>
+      <div class="advanced-section">
+        <h3 class="adv-h3">다운로드 설정</h3>
+        <div id="settingsPanel" class="adv-panel-body">
+          <p class="adv-placeholder">다운로드 폴더와 파일명 규칙을 지정할 수 있습니다. (준비 중)</p>
+        </div>
+      </div>
+    </div>
+  </details>
 
   <div class="foot">
     <strong>유튜브 · 인스타그램 · 틱톡 · 페이스북</strong> 등에서 저장할 수 있습니다<br>

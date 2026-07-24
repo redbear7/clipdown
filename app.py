@@ -10,7 +10,7 @@ import secrets
 import subprocess
 import threading
 from functools import wraps
-from flask import Flask, request, jsonify, send_file, render_template, Response
+from flask import Flask, request, jsonify, send_file, render_template, Response, redirect
 
 import subscriptions as subs_mod
 import settings_store
@@ -231,7 +231,16 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
             s = str(seg.get("start") or "0").strip()
             e = str(seg.get("end") or "inf").strip()
             cmd += ["--download-sections", f"*{s}-{e}"]
-        cmd += ["--force-keyframes-at-cuts"]
+        # --force-keyframes-at-cuts triggers a re-encode with strict boundaries.
+        # On some Windows setups the re-encode leaves a stale duration atom in
+        # the MP4 container (users saw a 10s clip playing correctly for 10s and
+        # then white padding out to the video's original 34s length).
+        # Only opt in for multi-segment jobs where the concat between sections
+        # actually benefits from keyframe-aligned cuts. Single-segment downloads
+        # use yt-dlp's default -c copy path — cut is imprecise by up to a
+        # keyframe interval but the output is always a clean file.
+        if len(sections) > 1:
+            cmd += ["--force-keyframes-at-cuts"]
         log(job, f"Trimming to {len(sections)} segment(s): "
                  + ", ".join(f"{seg.get('start','0')}-{seg.get('end','inf')}" for seg in sections))
 
@@ -559,13 +568,13 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
 @app.route("/")
 @auth_required
 def index():
-    return render_template("index.html")
+    # Senior UI is now the single main UI — everyone lands there.
+    return redirect("/simple", code=302)
 
 
 @app.route("/simple")
 @auth_required
 def simple_index():
-    """Simplified single-screen UI for beginners."""
     return render_template("simple.html")
 
 
