@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import urllib.request
 
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.2"
 
 _YTDLP_LATEST_URL = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
 _HTTP_TIMEOUT = 15

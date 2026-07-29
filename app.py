@@ -217,6 +217,87 @@ def get_duration(filepath):
         return None
 
 
+def _parse_time_to_seconds(v):
+    """'1:23' / '0:01:23' / '45' / '45.5' → seconds (float). None → None."""
+    if v is None or v == "":
+        return None
+    v = str(v).strip()
+    if v.lower() == "inf":
+        return None
+    try:
+        parts = v.split(":")
+        parts = [float(p) for p in parts]
+    except ValueError:
+        return None
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    if len(parts) == 3:
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    return None
+
+
+def _multi_trim(job, source_path, sections, format_choice):
+    """Cut each requested [start, end] out of source_path with ffmpeg and concat
+    into a single output. Returns the new file path (replacing source_path).
+    """
+    ext = os.path.splitext(source_path)[1] or (".mp3" if format_choice == "audio" else ".mp4")
+    stem = os.path.splitext(source_path)[0]
+    seg_files = []
+
+    log(job, f"Slicing {len(sections)} segments...")
+    for i, seg in enumerate(sections, 1):
+        start = _parse_time_to_seconds(seg.get("start")) or 0.0
+        end = _parse_time_to_seconds(seg.get("end"))
+        seg_path = f"{stem}_seg{i:02d}{ext}"
+        cut_cmd = [FFMPEG_BIN, "-y", "-loglevel", "error",
+                   "-ss", f"{start:.3f}"]
+        if end is not None:
+            cut_cmd += ["-to", f"{end:.3f}"]
+        cut_cmd += ["-i", source_path, "-c", "copy",
+                    "-avoid_negative_ts", "make_zero",
+                    seg_path]
+        r = subprocess.run(cut_cmd, capture_output=True, text=True, timeout=300,
+                           **_hide_window_kwargs())
+        if r.returncode != 0 or not os.path.exists(seg_path):
+            raise RuntimeError(f"segment {i} cut failed: {(r.stderr or '').strip()[:200]}")
+        seg_files.append(seg_path)
+        job["progress"] = round(70 + (i / len(sections)) * 15, 1)
+
+    # concat via demuxer with a list file
+    list_path = f"{stem}_concat.txt"
+    with open(list_path, "w", encoding="utf-8") as f:
+        for sp in seg_files:
+            escaped = sp.replace("'", "'\\''")
+            f.write(f"file '{escaped}'\n")
+
+    concat_out = f"{stem}_concat{ext}"
+    concat_cmd = [FFMPEG_BIN, "-y", "-loglevel", "error",
+                  "-f", "concat", "-safe", "0",
+                  "-i", list_path,
+                  "-c", "copy", "-movflags", "+faststart",
+                  concat_out]
+    r = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=300,
+                       **_hide_window_kwargs())
+    if r.returncode != 0 or not os.path.exists(concat_out):
+        raise RuntimeError(f"concat failed: {(r.stderr or '').strip()[:200]}")
+
+    # Cleanup: drop the segment temp files, the concat list, and the untrimmed
+    # original download; the concatenated file takes its place.
+    for sp in seg_files:
+        try: os.remove(sp)
+        except OSError: pass
+    try: os.remove(list_path)
+    except OSError: pass
+    try: os.remove(source_path)
+    except OSError: pass
+    os.rename(concat_out, source_path)
+    log(job, f"Concatenated {len(sections)} segments → {os.path.basename(source_path)}")
+    job["progress"] = 90
+    return source_path
+
+
 def run_download(job_id, url, format_choice, format_id, force_h264=False,
                  fast_mode=False, start_time=None, end_time=None, sections=None,
                  subs=False):
@@ -241,22 +322,24 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
     if not sections and (start_time or end_time):
         sections = [{"start": start_time or "0", "end": end_time or "inf"}]
 
-    if sections:
-        for seg in sections:
-            s = str(seg.get("start") or "0").strip()
-            e = str(seg.get("end") or "inf").strip()
-            cmd += ["--download-sections", f"*{s}-{e}"]
-        # --force-keyframes-at-cuts triggers a re-encode with strict boundaries.
-        # On some Windows setups the re-encode leaves a stale duration atom in
-        # the MP4 container (users saw a 10s clip playing correctly for 10s and
-        # then white padding out to the video's original 34s length).
-        # Only opt in for multi-segment jobs where the concat between sections
-        # actually benefits from keyframe-aligned cuts. Single-segment downloads
-        # use yt-dlp's default -c copy path — cut is imprecise by up to a
-        # keyframe interval but the output is always a clean file.
-        if len(sections) > 1:
-            cmd += ["--force-keyframes-at-cuts"]
-        log(job, f"Trimming to {len(sections)} segment(s): "
+    # Trim strategy:
+    # - Single section: hand off to yt-dlp via --download-sections. Bandwidth-
+    #   efficient (only that range is fetched). Cut is imprecise by up to a
+    #   keyframe interval but the container is clean.
+    # - Multi section: yt-dlp accepts multiple --download-sections flags but in
+    #   practice only downloads the first range — the rest are silently dropped.
+    #   Users then got the original video back at its full length. So we skip
+    #   yt-dlp's slicing entirely for multi-section jobs and cut + concat with
+    #   ffmpeg after the full download completes (handled in _multi_trim below).
+    single_section_for_ytdlp = None
+    if sections and len(sections) == 1:
+        s = str(sections[0].get("start") or "0").strip()
+        e = str(sections[0].get("end") or "inf").strip()
+        cmd += ["--download-sections", f"*{s}-{e}"]
+        single_section_for_ytdlp = (s, e)
+        log(job, f"Trimming to segment: {s}-{e}")
+    elif sections:
+        log(job, f"Downloading full video first, will trim to {len(sections)} segments: "
                  + ", ".join(f"{seg.get('start','0')}-{seg.get('end','inf')}" for seg in sections))
 
     # Fast mode: skip cookies (works for public content).
@@ -437,6 +520,17 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
                     os.remove(f)
                 except OSError:
                     pass
+
+        # Multi-section: yt-dlp downloaded the full file — now slice + concat
+        # each requested range ourselves with ffmpeg. Single-section jobs were
+        # already trimmed by yt-dlp above, so this branch is skipped.
+        if sections and len(sections) > 1:
+            job["phase"] = "trimming"
+            job["progress"] = 0
+            try:
+                chosen = _multi_trim(job, chosen, sections, format_choice)
+            except Exception as e:
+                log(job, f"Multi-section trim failed: {e}")
 
         fsize = os.path.getsize(chosen)
         log(job, f"File size: {fsize / 1024 / 1024:.1f} MB")
