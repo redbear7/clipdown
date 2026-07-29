@@ -91,6 +91,21 @@ except Exception as _e:
     sys.stderr.write(f"[startup] makedirs {DOWNLOAD_DIR} failed: {_e}\n")
 
 
+# Cookie-import failure patterns yt-dlp can emit on Windows.
+# We use this same set at info-fetch AND download time so any of them triggers
+# the same "drop cookies and retry" fallback.
+def _looks_like_cookie_failure(text: str) -> bool:
+    if not text:
+        return False
+    s = text.lower()
+    return (
+        ("could not copy" in s and "cookie" in s)          # DB was locked
+        or "failed to decrypt with dpapi" in s              # DPAPI decrypt error
+        or "unable to obtain the keyring" in s              # Linux keyring
+        or "cookies from browser" in s and "error" in s     # generic yt-dlp cookie error
+    )
+
+
 # Hide console windows for every yt-dlp / ffmpeg / ffprobe subprocess on Windows.
 # Without this, each spawn briefly flashes a black console window in front of
 # the desktop app — annoying for senior users especially.
@@ -301,7 +316,7 @@ def run_download(job_id, url, format_choice, format_id, force_h264=False,
             line = line.strip()
             if not line:
                 continue
-            if cookie_browser and "Could not copy" in line and "cookie" in line.lower():
+            if cookie_browser and _looks_like_cookie_failure(line):
                 cookie_copy_failed = True
             # yt-dlp's ejs / deno JS-runner plugins didn't register their URL
             # scheme on this box (common on Windows when the plugin fetch was
@@ -607,7 +622,7 @@ def get_info():
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
                                 **_hide_window_kwargs())
         # Retry without cookies when the browser DB was locked.
-        if result.returncode != 0 and "Could not copy" in (result.stderr or "") and "cookie" in (result.stderr or "").lower():
+        if result.returncode != 0 and _looks_like_cookie_failure(result.stderr):
             result = subprocess.run(base_cmd + [url], capture_output=True, text=True, timeout=60,
                                     **_hide_window_kwargs())
         if result.returncode != 0:
