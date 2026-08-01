@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.3.3</title>
+  <title>유튜브 다운로더 v0.3.4</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -990,6 +990,41 @@
 
 
 
+    /* Filename preview hint */
+    .filename-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      font-size: 0.88rem;
+      color: var(--fg-secondary);
+      overflow: hidden;
+    }
+    .filename-hint svg {
+      width: 16px;
+      height: 16px;
+      color: var(--fg-tertiary);
+      flex-shrink: 0;
+    }
+    .filename-hint .fh-label {
+      color: var(--fg-tertiary);
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .filename-hint .fh-name {
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--fg);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
     /* URL input wrapper + recent-URL dropdown */
     .url-wrap {
       flex: 1;
@@ -1482,7 +1517,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.3.3</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.3.4</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -1616,6 +1651,12 @@
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-text">시작 버튼을 누르세요</div>
+      </div>
+      <!-- Filename preview: fills once the video info is known -->
+      <div class="filename-hint" id="filenameHint" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="fh-label">저장될 파일명</span>
+        <span class="fh-name" id="filenamePreview"></span>
       </div>
       <button class="dl-btn" id="dlBtn" onclick="startDownload()">
         <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -2008,6 +2049,44 @@ function pickFormat(fmt) {
   currentFormat = fmt;
   document.querySelectorAll('.fmt-btn').forEach(b => b.classList.toggle('active', b.dataset.fmt === fmt));
   try { localStorage.setItem('clipdown.format', fmt); } catch (e) { /* private mode */ }
+  updateFilenameHint();
+}
+
+// ─── Filename preview (matches settings_store.render_filename defaults) ─────
+let _lastTitleForFilename = '';
+
+function sanitizeForFilename(name) {
+  // Match settings_store.py behavior loosely: strip filesystem-hostile chars
+  return (name || '')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
+function todayYYMMDD() {
+  const d = new Date();
+  const y = String(d.getFullYear()).slice(2);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + m + day;
+}
+
+function updateFilenameHint() {
+  const hint = document.getElementById('filenameHint');
+  const nameEl = document.getElementById('filenamePreview');
+  if (!hint || !nameEl) return;
+  const title = _lastTitleForFilename;
+  if (!title) { hint.style.display = 'none'; return; }
+  const ext = currentFormat === 'audio' ? 'mp3' : 'mp4';
+  const clean = sanitizeForFilename(title) || '영상';
+  nameEl.textContent = `${todayYYMMDD()}_${clean}.${ext}`;
+  hint.style.display = 'flex';
+}
+
+function setFilenameTitle(title) {
+  _lastTitleForFilename = (title || '').trim();
+  updateFilenameHint();
 }
 
 // Restore last-chosen format on load (defaults to 'video')
@@ -2373,6 +2452,32 @@ function showInstantYouTubePreview(videoId, url) {
     _videoInfo = {..._videoInfo, thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`};
     refreshAllScrubbers();
   }
+
+  // Fire oEmbed in parallel — usually resolves in ~150-300ms with title +
+  // author. This lets the user SEE something concrete long before yt-dlp
+  // finishes its 3-5s format+duration probe. If /api/info arrives later
+  // with a real title, fetchPreview will overwrite these values.
+  fetchYouTubeOembed(url).then(data => {
+    if (!data) return;
+    // Only overwrite if a slower backend response hasn't already filled these
+    if (titleEl.textContent === '영상 정보 확인 중...') {
+      if (data.title) { titleEl.textContent = data.title; setFilenameTitle(data.title); }
+      if (data.author_name) {
+        channelEl.textContent = data.author_name;
+      }
+    }
+  }).catch(() => {});
+}
+
+async function fetchYouTubeOembed(url) {
+  try {
+    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const res = await fetch(endpoint, {mode: 'cors'});
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
 }
 
 function schedulePreview(url, immediate) {
@@ -2495,6 +2600,7 @@ urlInput.addEventListener('paste', () => {
 
 function hidePreview() {
   document.getElementById('urlPreview').style.display = 'none';
+  setFilenameTitle('');
 }
 
 function formatDuration(sec) {
@@ -2563,6 +2669,7 @@ async function fetchPreview(url) {
       return;
     }
     titleEl.textContent = info.title || '(제목 없음)';
+    setFilenameTitle(info.title || '');
     if (info.thumbnail) thumbEl.src = info.thumbnail;
     channelEl.textContent = info.uploader || '';
     const dur = formatDuration(info.duration);
@@ -2768,17 +2875,62 @@ function translatePhase(p) {
 
 function translateError(err) {
   if (!err) return '알 수 없는 오류가 생겼습니다';
-  if (err.includes('Unsupported URL')) return '이 사이트는 지원하지 않습니다';
-  if (err.includes('unavailable') || err.includes('Video unavailable')) return '영상을 볼 수 없습니다 (비공개이거나 삭제된 영상)';
-  if (err.includes('Private video')) return '비공개 영상입니다';
-  if (err.includes('Sign in')) return '로그인이 필요한 영상입니다';
-  if (err.includes('HTTP Error 403')) return '접근이 거부되었습니다';
-  if (err.includes('HTTP Error 404')) return '영상을 찾을 수 없습니다';
-  if (err.includes('copyright')) return '저작권 때문에 저장할 수 없는 영상입니다';
-  if (err.includes('geo') || err.includes('region')) return '우리나라에서 볼 수 없는 영상입니다';
-  if (err.includes('timed out') || err.includes('Timed out')) return '시간이 오래 걸려서 멈췄어요. 다시 시도해 주세요';
-  if (err.includes('DRM')) return '보호된 영상이라 저장할 수 없습니다';
-  return err.length > 80 ? err.slice(0, 80) + '...' : err;
+  const s = err.toString();
+  const l = s.toLowerCase();
+
+  // Access / auth
+  if (s.includes('Sign in to confirm your age') || l.includes('age-restricted'))
+    return '연령 제한 영상입니다. 로그인 후 다운로드 가능한 브라우저에서 열어주세요';
+  if (s.includes('Members-only') || l.includes('members only'))
+    return '멤버십 전용 영상입니다';
+  if (s.includes('Private video')) return '비공개 영상입니다';
+  if (s.includes('Sign in')) return '로그인이 필요한 영상입니다';
+  if (l.includes('unavailable') || s.includes('Video unavailable'))
+    return '영상을 볼 수 없습니다 (비공개이거나 삭제된 영상)';
+  if (s.includes('This video has been removed')) return '삭제된 영상입니다';
+
+  // Live
+  if (s.includes('This live event will begin')) return '라이브 방송 예정입니다 (아직 시작 안 됨)';
+  if (l.includes('live stream') && l.includes('offline')) return '라이브 방송이 종료됐거나 오프라인입니다';
+
+  // Network / auth-lite
+  if (s.includes('HTTP Error 403')) return '접근이 거부되었습니다';
+  if (s.includes('HTTP Error 404')) return '영상을 찾을 수 없습니다';
+  if (s.includes('HTTP Error 429')) return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요';
+  if (s.includes('Failed to decrypt with DPAPI') || l.includes('cookies from browser'))
+    return '브라우저 쿠키를 읽을 수 없습니다. 브라우저를 닫고 다시 시도해 주세요';
+  if (l.includes('unable to download webpage') || l.includes('network is unreachable'))
+    return '네트워크 연결을 확인해 주세요';
+  if (l.includes('name or service not known') || l.includes('dns'))
+    return '인터넷 연결을 확인해 주세요';
+
+  // Location / rights
+  if (s.includes('copyright')) return '저작권 때문에 저장할 수 없는 영상입니다';
+  if (l.includes('geo') || l.includes('region') || l.includes('not available in your country'))
+    return '이 지역에서 볼 수 없는 영상입니다';
+  if (s.includes('DRM') || l.includes('protected content'))
+    return '보호된 영상이라 저장할 수 없습니다';
+
+  // Timeouts / retries
+  if (l.includes('timed out') || l.includes('timeout'))
+    return '시간이 오래 걸려서 멈췄어요. 다시 시도해 주세요';
+  if (l.includes('connection reset') || l.includes('connection refused'))
+    return '연결이 끊겼습니다. 잠시 후 다시 시도해 주세요';
+
+  // Unsupported / URL
+  if (s.includes('Unsupported URL')) return '이 사이트는 지원하지 않습니다';
+  if (s.includes('Unsupported url scheme'))
+    return '영상 처리 도구가 준비되지 않았습니다. 앱을 재시작해 주세요';
+  if (l.includes('invalid url')) return '주소 형식이 잘못됐습니다';
+
+  // Format / codec
+  if (l.includes('requested format is not available'))
+    return '이 화질은 제공되지 않습니다. 다른 화질을 시도해 주세요';
+  if (l.includes('no video formats found'))
+    return '영상 파일을 찾을 수 없습니다 (음악 트랙만 있을 수 있어요)';
+
+  // Fallback
+  return s.length > 80 ? s.slice(0, 80) + '...' : s;
 }
 
 function renderItem(item) {
