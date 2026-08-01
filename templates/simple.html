@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>유튜브 다운로더 v0.3.2</title>
+  <title>유튜브 다운로더 v0.3.3</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -990,6 +990,79 @@
 
 
 
+    /* URL input wrapper + recent-URL dropdown */
+    .url-wrap {
+      flex: 1;
+      position: relative;
+    }
+    .url-history {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      max-height: 360px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-lg);
+      z-index: 50;
+      padding: 6px;
+    }
+    .url-history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      transition: background 0.12s var(--ease);
+    }
+    .url-history-item:hover,
+    .url-history-item.hover {
+      background: var(--surface-hover);
+    }
+    .url-history-thumb {
+      width: 68px;
+      height: 40px;
+      background: var(--surface-muted) center/cover no-repeat;
+      border-radius: var(--r-xs);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-muted);
+    }
+    .url-history-thumb svg { width: 20px; height: 20px; }
+    .url-history-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .url-history-title {
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: -0.005em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .url-history-url {
+      font-size: 0.78rem;
+      color: var(--fg-tertiary);
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+    .url-history-empty {
+      padding: 24px 12px;
+      text-align: center;
+      color: var(--fg-tertiary);
+      font-size: 0.9rem;
+    }
+
     /* URL preview card */
     .url-preview {
       display: flex;
@@ -1036,6 +1109,26 @@
       font-weight: 500;
     }
     .preview-dot { color: var(--fg-muted); }
+    .preview-cancel {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--r-full);
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-tertiary);
+      transition: all 0.15s var(--ease);
+      flex-shrink: 0;
+    }
+    .preview-cancel svg { width: 16px; height: 16px; }
+    .preview-cancel:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--danger-tint);
+    }
     .preview-spinner {
       width: 28px; height: 28px;
       display: flex; align-items: center; justify-content: center;
@@ -1389,7 +1482,7 @@
 
 <div class="container">
   <div class="brand">
-    <h1>유튜브 다운로더 <span class="version">v0.3.2</span></h1>
+    <h1>유튜브 다운로더 <span class="version">v0.3.3</span></h1>
     <p>주소만 붙여넣으면 영상이 저장됩니다</p>
     <div id="updateBadge" class="update-badge" style="display:none;" onclick="showUpdatePanel()"></div>
   </div>
@@ -1433,7 +1526,11 @@
     </div>
     <div class="step-hint">유튜브, 인스타그램 등의 영상 주소를 복사해서 여기에 붙여넣습니다</div>
     <div class="url-row">
-      <input type="text" id="urlInput" placeholder="예: https://www.youtube.com/..." autofocus>
+      <div class="url-wrap">
+        <input type="text" id="urlInput" placeholder="예: https://www.youtube.com/..." autofocus autocomplete="off">
+        <!-- Recent-URL dropdown, populated from /api/history and toggled by focus -->
+        <div id="urlHistory" class="url-history" style="display:none;"></div>
+      </div>
       <button type="button" class="paste-btn" onclick="pasteFromClipboard()" title="복사한 주소 붙여넣기">
         <svg class="paste-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         <span>붙여넣기</span>
@@ -1454,6 +1551,9 @@
       <div class="preview-spinner" id="previewSpinner" style="display:none;">
         <span class="spin"></span>
       </div>
+      <button type="button" id="previewCancel" class="preview-cancel" title="취소" style="display:none;" onclick="cancelPreview()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
 
     <!-- Step 2 -->
@@ -2292,7 +2392,102 @@ function schedulePreview(url, immediate) {
   }, delay);
 }
 
-urlInput.addEventListener('input', () => schedulePreview(urlInput.value.trim(), false));
+// ─── Recent-URL dropdown (populated from /api/history) ──────────────
+const urlHistoryEl = document.getElementById('urlHistory');
+let _urlHistoryCache = null;
+let _urlHistoryLastFetch = 0;
+
+async function loadUrlHistory() {
+  const now = Date.now();
+  if (_urlHistoryCache && (now - _urlHistoryLastFetch) < 30000) return _urlHistoryCache;
+  try {
+    const res = await fetch('/api/history?limit=50');
+    const data = await res.json();
+    const rows = Array.isArray(data.history) ? data.history : [];
+    // Dedupe by URL keeping the newest, then cap to 10
+    const seen = new Set();
+    const unique = [];
+    for (const r of rows) {
+      if (!r.url || seen.has(r.url)) continue;
+      seen.add(r.url);
+      unique.push(r);
+      if (unique.length >= 10) break;
+    }
+    _urlHistoryCache = unique;
+    _urlHistoryLastFetch = now;
+    return unique;
+  } catch (e) {
+    return [];
+  }
+}
+
+function thumbForRow(row) {
+  // YouTube: build from video id → i.ytimg.com. Other sites: no thumb.
+  const vid = extractYouTubeVideoId(row.url || '');
+  return vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : null;
+}
+
+function renderUrlHistory(rows) {
+  while (urlHistoryEl.firstChild) urlHistoryEl.removeChild(urlHistoryEl.firstChild);
+  if (!rows.length) {
+    urlHistoryEl.appendChild(build('div', {class: 'url-history-empty'}, '이전에 저장한 링크가 없습니다'));
+    return;
+  }
+  for (const row of rows) {
+    const thumbUrl = thumbForRow(row);
+    const thumb = build('div', {class: 'url-history-thumb'});
+    if (thumbUrl) {
+      thumb.style.backgroundImage = `url("${thumbUrl}")`;
+    } else {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+      svg.innerHTML = '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>';
+      thumb.appendChild(svg);
+    }
+    const item = build('div', {class: 'url-history-item'}, [
+      thumb,
+      build('div', {class: 'url-history-body'}, [
+        build('div', {class: 'url-history-title'}, row.title || '(제목 없음)'),
+        build('div', {class: 'url-history-url'}, row.url),
+      ]),
+    ]);
+    // mousedown before blur — otherwise blur hides the panel before click fires
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      urlInput.value = row.url;
+      hideUrlHistory();
+      schedulePreview(row.url, true);
+      urlInput.focus();
+    });
+    urlHistoryEl.appendChild(item);
+  }
+}
+
+async function showUrlHistory() {
+  if (urlInput.value.trim()) return;   // user typed already — don't cover suggestions
+  const rows = await loadUrlHistory();
+  renderUrlHistory(rows);
+  urlHistoryEl.style.display = 'block';
+}
+
+function hideUrlHistory() {
+  urlHistoryEl.style.display = 'none';
+}
+
+urlInput.addEventListener('focus', showUrlHistory);
+urlInput.addEventListener('click', showUrlHistory);
+urlInput.addEventListener('blur', () => setTimeout(hideUrlHistory, 200));
+
+urlInput.addEventListener('input', () => {
+  // Typing → hide the dropdown so the preview card can take over
+  hideUrlHistory();
+  schedulePreview(urlInput.value.trim(), false);
+});
 urlInput.addEventListener('paste', () => {
   // Paste hasn't updated the input value yet — defer to next tick
   setTimeout(() => schedulePreview(urlInput.value.trim(), true), 0);
@@ -2312,14 +2507,33 @@ function formatDuration(sec) {
            : `${m}:${String(rs).padStart(2,'0')}`;
 }
 
+let _previewAbort = null;
+
+function cancelPreview() {
+  if (_previewAbort) { try { _previewAbort.abort(); } catch (e) {} _previewAbort = null; }
+  _previewToken++;   // invalidate any in-flight response handler
+  clearTimeout(_previewTimer);
+  _lastPreviewUrl = '';
+  hidePreview();
+  const cancelBtn = document.getElementById('previewCancel');
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  document.getElementById('previewSpinner').style.display = 'none';
+}
+
 async function fetchPreview(url) {
   const box = document.getElementById('urlPreview');
   const spinner = document.getElementById('previewSpinner');
+  const cancelBtn = document.getElementById('previewCancel');
   const titleEl = document.getElementById('previewTitle');
   const thumbEl = document.getElementById('previewThumb');
   const channelEl = document.getElementById('previewChannel');
   const durEl = document.getElementById('previewDuration');
   const dotEl = document.getElementById('previewDot');
+
+  // Cancel any prior in-flight request so its response can't clobber this one
+  if (_previewAbort) { try { _previewAbort.abort(); } catch (e) {} }
+  _previewAbort = new AbortController();
+  const controller = _previewAbort;
 
   const myToken = ++_previewToken;
   box.style.display = 'flex';
@@ -2329,15 +2543,18 @@ async function fetchPreview(url) {
   dotEl.style.display = 'none';
   thumbEl.removeAttribute('src');
   spinner.style.display = 'flex';
+  if (cancelBtn) cancelBtn.style.display = 'inline-flex';
 
   try {
     const res = await fetch('/api/info', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({url}),
+      signal: controller.signal,
     });
     if (myToken !== _previewToken) return;
     const info = await res.json();
     spinner.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
 
     if (info.error) {
       box.classList.add('error');
@@ -2360,8 +2577,11 @@ async function fetchPreview(url) {
     };
     refreshAllScrubbers();
   } catch (e) {
+    // Aborted requests are silent — the user asked to cancel, don't scream at them.
+    if (e && e.name === 'AbortError') return;
     if (myToken !== _previewToken) return;
     spinner.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
     box.classList.add('error');
     titleEl.textContent = '연결 실패';
     channelEl.textContent = '';
@@ -2483,7 +2703,9 @@ async function startDownload() {
       renderItem(item); showToast('오류: ' + item.error, 'err'); restoreBtn(); return;
     }
     item.jobId = dlData.job_id;
-    pollJob(item, () => { restoreBtn(); urlInput.value = ''; urlInput.focus(); });
+    // Keep the URL in the input so the user can immediately tweak a different
+    // segment / format and download from the same source again.
+    pollJob(item, () => { restoreBtn(); urlInput.focus(); urlInput.select(); });
   } catch (err) {
     item.status = 'error'; item.error = '서버에 연결할 수 없습니다';
     renderItem(item); showToast(item.error, 'err'); restoreBtn();
@@ -2596,7 +2818,16 @@ function renderItem(item) {
   el.appendChild(body);
 
   if (item.status === 'done') {
-    el.appendChild(build('button', { class: 'item-btn', onclick: () => saveFile(item) }, '다시 저장'));
+    // Per user request: this button just refills the URL input so they can
+    // dial in a different segment / format for the same source. The file
+    // itself was already saved to Downloads at completion time.
+    el.appendChild(build('button', { class: 'item-btn', onclick: () => {
+      urlInput.value = item.url;
+      urlInput.focus();
+      urlInput.select();
+      schedulePreview(item.url, true);
+      urlInput.scrollIntoView({behavior: 'smooth', block: 'center'});
+    } }, '다시 저장'));
   } else if (item.status === 'error') {
     el.appendChild(build('button', { class: 'item-btn', onclick: () => {
       urlInput.value = item.url; pickFormat(item.format); startDownload();
